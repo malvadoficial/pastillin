@@ -1,0 +1,18 @@
+//
+//  Item.swift
+//  MediRecord
+//
+//  Created by José Manuel Rives on 11/2/26.
+//
+
+import Foundation
+import SwiftData
+
+@Model
+final class Item {
+    var timestamp: Date
+    
+    init(timestamp: Date) {
+        self.timestamp = timestamp
+    }
+}
