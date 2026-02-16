@@ -1,0 +1,250 @@
+"content_item_at_format" = "Item at %@";
+"content_add_item" = "Add Item";
+"content_select_item" = "Select an item";
+
+"tab_today" = "Today";
+"tab_calendar" = "Calendar";
+"tab_medications" = "Medications";
+"tab_settings" = "Settings";
+
+"today_empty" = "Nothing for today";
+"today_title" = "Today";
+"taken_fem" = "Taken";
+"not_taken_fem" = "Not taken";
+
+"calendar_title" = "Calendar";
+
+"medications_title" = "Medications";
+"medications_section_scheduled" = "Scheduled treatments";
+"medications_section_occasional" = "Occasional use";
+"medication_add_type_title" = "Medication type";
+"medication_add_scheduled" = "Scheduled medication";
+"medication_add_occasional" = "Occasional-use medication";
+"medication_inactive_badge" = "Disabled";
+"medication_occasional_badge" = "Occasional use";
+"medication_occasional_badge_short" = "Occasional";
+"summary_format" = "%@ · start %@%@";
+"summary_end_format" = " · end %@";
+"summary_start_line_format" = "Start %@";
+"summary_end_line_format" = "End %@";
+"summary_occasional_date_line_format" = "Date %@";
+"summary_chronic" = "Chronic";
+
+"unit_day_one" = "day";
+"unit_day_other" = "days";
+"unit_month_one" = "month";
+"unit_month_other" = "months";
+"recurrence_daily" = "Daily";
+"recurrence_monthly" = "Monthly";
+"recurrence_every_days_format" = "Every %d days";
+"recurrence_every_months_format" = "Every %d months";
+
+"section_medication" = "Medication";
+"edit_field_name" = "Name";
+"edit_field_note_optional" = "Note (optional)";
+"edit_toggle_active" = "Active";
+"edit_section_schedule" = "Schedule";
+"edit_picker_unit" = "Unit";
+"edit_unit_days" = "Days";
+"edit_unit_months" = "Months";
+"edit_toggle_daily" = "Daily";
+"edit_schedule_pattern_label" = "Pattern";
+"edit_schedule_every_prefix" = "Every";
+"edit_schedule_number" = "Number";
+"edit_stepper_every_format" = "Every %d %@";
+"edit_date_start" = "Start";
+"edit_toggle_chronic" = "Chronic";
+"edit_date_end_included" = "End (included)";
+"occasional_section_date" = "Date";
+"occasional_date" = "Intake date";
+"occasional_taken_time" = "Taken time";
+"occasional_reminder_toggle" = "Enable reminder";
+"occasional_reminder_time" = "Reminder time";
+"edit_section_history_format" = "History (last %d)";
+"edit_title_new" = "New medication";
+"edit_title_new_occasional" = "New occasional-use medication";
+"edit_title_edit" = "Edit medication";
+"edit_delete_medication" = "Delete medication";
+"edit_delete_title" = "Delete medication";
+"edit_delete_message" = "This action will also remove its history.";
+"edit_delete_confirm" = "Delete";
+"button_cancel" = "Cancel";
+"button_save" = "Save";
+"button_edit" = "Edit";
+
+"history_taken_time_format" = "Taken · %@";
+"history_not_taken" = "Not taken";
+"time_unspecified" = "Time not specified";
+
+"day_empty" = "Nothing scheduled";
+"status_taken_masc" = "Taken";
+"status_not_taken_masc" = "Not taken";
+"button_close" = "Close";
+
+"detail_day_label_format" = "Day: %@";
+"detail_section_status" = "Status";
+"detail_section_status_toggle" = "Status (tap to change)";
+"detail_action_mark_taken" = "Taken";
+"detail_action_mark_not_taken" = "Not taken";
+"detail_status_taken_current" = "Taken";
+"detail_status_not_taken_current" = "Not taken";
+"detail_section_time" = "Time";
+"detail_label_time_taken" = "Taken time";
+"detail_title" = "Detail";
+"detail_remove_for_day" = "Remove for this day";
+"detail_remove_for_day_title" = "Remove for this day";
+"detail_remove_for_day_message" = "Only this day will be removed. The treatment will remain active on other dates.";
+"detail_remove_for_day_confirm" = "Remove day";
+
+"settings_title" = "Settings";
+"settings_section_reminder" = "Daily reminder";
+"settings_toggle_enable" = "Enable reminder";
+"settings_label_time" = "Time";
+"settings_section_report" = "Medical report";
+"settings_label_from" = "From";
+"settings_label_to" = "To";
+"settings_button_generate_pdf" = "Generate PDF";
+"settings_button_share_report" = "Share/Save report";
+"error_enable_reminder" = "Could not enable the reminder.";
+"error_reschedule_reminder" = "Could not reschedule the reminder.";
+"error_generate_report" = "Could not generate the report.";
+
+"notification_action_open" = "Open and mark";
+"notification_action_snooze_1h" = "Snooze 1 hour";
+"notification_title" = "Today's medications";
+"notification_body" = "Open to mark what you've taken.";
+"notification_occasional_title" = "Medication reminder";
+"notification_occasional_body_format" = "You should take %@.";
+
+"report_filename_prefix" = "MedicationReport";
+"report_title" = "Medication report";
+"report_period_format" = "Period: %@ → %@";
+"report_day_format" = "%@";
+"report_line_format" = "• %@: %@";
+"report_line_with_time_format" = "• %@: %@  (time: %@)";
+"report_taken" = "Taken";
+"report_not_taken" = "Not taken";
+"report_occasional_badge" = "Occasional use";
+"report_general_title" = "General medication data";
+"report_general_chronic_section" = "Chronic treatments";
+"report_general_scheduled_section" = "Scheduled treatments (with end)";
+"report_general_occasional_section" = "Occasional-use medications";
+"report_general_line_chronic" = "%@ · start %@";
+"report_general_line_scheduled" = "%@ · start %@ · end %@";
+"report_general_line_occasional" = "%@ · intake date %@";
+"report_general_line_occasional_with_time" = "%@ · intake date %@ · time %@";
+"report_general_empty" = "No medications";
+"report_daily_section_title" = "Daily detail";
+
+"section_photo" = "Photo";
+"photo_empty" = "No photo";
+"photo_pick" = "Choose from library";
+"photo_take" = "Take photo";
+"photo_remove" = "Remove photo";
+
+"photo_camera_unavailable_title" = "Camera unavailable";
+"photo_camera_unavailable_message" = "The camera is not available in the simulator.";
+"button_ok" = "OK";
+
+"photo_choose" = "Add photo";
+"photo_change" = "Change photo";
+"photo_choose_title" = "Choose an option";
+
+"settings_section_help" = "Help";
+"settings_open_help" = "View app help";
+
+"help_title" = "Help";
+"help_intro" = "This app helps you organize your medicines and mark what you have taken. It is designed to be simple and easy to use.";
+
+"help_section_tabs" = "Sections";
+"help_tab_today_title" = "Today";
+"help_tab_today_text" = "Here you can see today's medicines. You can mark Taken or Not taken and open each medicine detail.";
+"help_tab_calendar_title" = "Calendar";
+"help_tab_calendar_text" = "Here you can check any day: past, today, or future. Tap a day to see its medicine list.";
+"help_tab_medications_title" = "Medications";
+"help_tab_medications_text" = "Here you create, edit, and delete medicines. You can also change photo, notes, and dates.";
+"help_tab_settings_title" = "Settings";
+"help_tab_settings_text" = "Here you can enable the daily reminder and generate the PDF report.";
+
+"help_section_flows" = "Main steps";
+"help_flow_create_scheduled_title" = "Create a scheduled medicine";
+"help_flow_create_scheduled_text" = "Go to Medications, tap +, choose Scheduled medication, fill in the data, and tap Save.";
+"help_flow_create_occasional_title" = "Create an occasional-use medicine";
+"help_flow_create_occasional_text" = "You can create it from Today, Calendar, or Medications using the + button. Choose date and save.";
+"help_flow_mark_title" = "Mark an intake";
+"help_flow_mark_text" = "In Today (or in the selected calendar day), tap Taken/Not taken.";
+"help_flow_remove_day_title" = "Remove one day intake";
+"help_flow_remove_day_text" = "Open detail and tap Remove for this day. Only that day is removed.";
+"help_flow_remove_all_title" = "Delete a full medicine";
+"help_flow_remove_all_text" = "Do it from Medications, opening detail and tapping Delete medication.";
+
+"help_section_notes" = "Useful notes";
+"help_note_time" = "In Settings, you can enable the daily reminder if you want.";
+"help_note_future" = "Future-date medicines cannot be marked as taken.";
+"help_note_report" = "The PDF report is generated from Settings, in the Medical report section.";
+"help_note_mac" = "There is a MAC version of the app you can use if you prefer managing it with keyboard and mouse. You can later import your data to that version (or vice versa) using the Backup features available in Settings.";
+
+"autocomplete_loading" = "Searching medications...";
+"autocomplete_no_results" = "No medications found.";
+"official_info_section_title" = "Official info";
+"official_info_full_name" = "Full name";
+"official_info_active_ingredient" = "Active ingredient";
+"official_info_laboratory" = "Laboratory";
+"official_info_source" = "Source";
+"official_info_source_value" = "CIMA (AEMPS)";
+"official_info_leaflet_button" = "View official leaflet";
+"official_info_loading" = "Loading official info...";
+"settings_section_autocomplete" = "AEMPS Integration";
+"settings_toggle_autocomplete" = "Enable AEMPS integration";
+"settings_aemps_info_title" = "AEMPS Integration";
+"settings_aemps_info_message" = "This integration searches the public AEMPS database to autocomplete medication names and fetch official additional information, including leaflet access. If you disable this switch, this integration is disabled.";
+"settings_section_backup" = "Backup";
+"settings_button_generate_backup" = "Generate backup";
+"settings_button_share_backup" = "Share/Save backup";
+"settings_button_restore_backup" = "Load backup";
+"settings_restore_confirm_title" = "Restore backup";
+"settings_restore_confirm_message" = "This will replace all current data with the selected backup data. Do you want to continue?";
+"settings_restore_confirm_button" = "Restore";
+"error_generate_backup" = "Could not generate the backup.";
+"error_restore_backup" = "Could not restore the backup.";
+"empty_medicines_fallback" = "There are no medicines to take.";
+"button_done" = "Done";
+"settings_section_appearance" = "Appearance";
+"settings_appearance_mode" = "Color mode";
+"settings_appearance_system" = "Follow system";
+"settings_appearance_light" = "Light";
+"settings_appearance_dark" = "Dark";
+"today_open_help" = "Open help";
+"today_overlay_plus_hint" = "Tap here to start adding medicines.";
+"today_overlay_help_hint" = "Tap here to learn how the app works.";
+"settings_section_danger" = "Danger zone";
+"settings_button_delete_all_data" = "Delete all data";
+"settings_delete_all_confirm_title" = "Delete all data";
+"settings_delete_all_confirm_message" = "This action cannot be undone. All app data will be deleted. We recommend creating a backup before continuing.";
+"settings_delete_all_confirm_button" = "Delete everything";
+"error_delete_all_data" = "Could not delete all data.";
+
+"official_info_leaflet_unavailable_title" = "Leaflet unavailable";
+"official_info_leaflet_unavailable_message" = "Could not open the official leaflet for this medication.";
+
+"settings_delete_all_success_title" = "Data deleted";
+"settings_delete_all_success_message" = "All data has been deleted.";
+
+"settings_section_legal" = "Legal";
+"settings_open_legal" = "Legal notice / Privacy";
+"legal_disclaimer_title" = "Legal disclaimer";
+"legal_disclaimer_intro" = "This app is made to help organize medication intakes.";
+"legal_disclaimer_point_1" = "It does not replace medical advice, diagnosis, or treatment from a doctor or healthcare professional.";
+"legal_disclaimer_point_2" = "You must always follow your doctor's instructions and the official leaflet for each medication.";
+"legal_disclaimer_point_3" = "The user is responsible for using the app and checking that entered data is correct.";
+"legal_disclaimer_point_4" = "The app may contain technical errors or failures. No incident-free operation is guaranteed.";
+"legal_disclaimer_point_5" = "The developer is not responsible for direct or indirect damages resulting from the use or misuse of the app.";
+"legal_disclaimer_point_6" = "This project was developed on a non-profit basis.";
+"legal_disclaimer_accept" = "I have read and understand this notice";
+"legal_disclaimer_privacy_title" = "Privacy";
+"legal_disclaimer_privacy_updated" = "Last update: February 11, 2026";
+"legal_disclaimer_privacy_content" = "1. Introduction\n\nThis Privacy Policy describes how Pastillin respects and protects user privacy. The app has been designed to work without collecting, storing, or sharing personal user data.\n\n2. Data that is NOT collected\n\nPastillin does NOT collect, process, or transmit:\n\nPersonally identifiable data\nMedical or clinical information\nHealth data linked to a person\nLocation data\nIP addresses\nDevice identifiers\nContact information\nUsage or analytics data\nAdvertising or tracking data\n\n3. Data entered by the user\n\nAny information entered by the user (for example, medication names, schedules, or reminders):\n\nIs stored exclusively locally on the user's device.\nIs not sent to external servers.\nIs not accessible by the developer.\nIs not shared with third parties.\n\n4. Use of external APIs\n\nThe app may use public information sources only to help users enter medication names (for example, autocomplete features).\n\nNo personal user information is sent.\nSearches are not associated with any personal identifier.\nQueries do not allow identifying the user.\n\n5. Backups\n\nLocally stored data may be part of device backups made by the operating system (for example, iCloud), depending on the user's own settings.\nThe developer does not have access to those backups.\n\n6. Data sharing\n\nPastillin does not share data with third parties, as it does not collect any data.\n\n7. Advertising and analytics\n\nThe app:\n\nDoes not include advertising.\nDoes not use analytics services.\nDoes not track the user.\n\n8. Minors\n\nThe app is not specifically directed to minors and does not collect any personal data from users of any age.\n\n9. Purpose of the app\n\nPastillin is a personal organization tool.\nIt does not provide medical advice, does not replace consultation with healthcare professionals, and does not perform diagnoses or clinical recommendations.\n\n10. Changes to this policy\n\nIf this Privacy Policy is updated, the new version will be publicly available in this same location.\n\n11. Contact\n\nIf you have any questions about this Privacy Policy, you can contact:\n\nEmail: malvadoficial@gmail.com";
+"legal_disclaimer_privacy_point_1" = "The app does not request or store personally identifiable data.";
+"legal_disclaimer_privacy_point_2" = "Medication usage data is stored locally on your device.";
+"legal_disclaimer_privacy_point_3" = "No information is sent to developer-owned servers or used for commercial purposes.";
+"legal_disclaimer_privacy_point_4" = "Data is only sent/received to query the public CIMA-AEMPS API (public body), exclusively to obtain medication information.";

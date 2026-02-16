@@ -1,0 +1,319 @@
+//
+//  MedicationLogDetailView.swift
+//  MediRecord
+//
+//  Created by José Manuel Rives on 11/2/26.
+//
+
+import SwiftUI
+import SwiftData
+import UIKit
+
+struct MedicationLogDetailView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+    @Query private var allLogs: [IntakeLog]
+    @Query private var appSettings: [AppSettings]
+
+    let medication: Medication
+    let dayKey: Date              // startOfDay del día seleccionado
+    @Bindable var log: IntakeLog  // el log de ese día para esa medicina
+    @State private var showRemoveForDayConfirmation = false
+    @State private var showDeleteOccasionalConfirmation = false
+    private var officialFullName: String? { normalized(medication.cimaNombreCompleto) }
+    private var officialActiveIngredient: String? { normalized(medication.cimaPrincipioActivo) }
+    private var officialLaboratory: String? { normalized(medication.cimaLaboratorio) }
+    private var officialProspectoURL: URL? {
+        resolvedProspectoURL(from: medication.cimaProspectoURL)
+    }
+    private var hasOfficialInfo: Bool {
+        officialFullName != nil || officialActiveIngredient != nil || officialLaboratory != nil || officialProspectoURL != nil || normalized(medication.cimaNRegistro) != nil
+    }
+    private var isAEMPSIntegrationEnabled: Bool {
+        appSettings.first?.medicationAutocompleteEnabled ?? true
+    }
+    private var isFutureDay: Bool {
+        let cal = Calendar.current
+        return cal.startOfDay(for: dayKey) > cal.startOfDay(for: Date())
+    }
+    private var canToggleTaken: Bool {
+        // En fechas futuras no se puede pasar a "Tomado".
+        !isFutureDay || log.isTaken
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(L10n.tr("section_medication")) {
+                    HStack(spacing: 12) {
+                        medicationThumbnail
+                        Text(medication.name).font(.headline)
+                    }
+                    if let note = medication.note, !note.isEmpty {
+                        Text(note).foregroundStyle(.secondary)
+                    }
+                    Text(String(format: L10n.tr("detail_day_label_format"), dateString(dayKey)))
+                        .foregroundStyle(.secondary)
+                }
+
+                if hasOfficialInfo {
+                    Section(L10n.tr("official_info_section_title")) {
+                        if let fullName = officialFullName {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(L10n.tr("official_info_full_name"))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(fullName)
+                                    .font(.subheadline.weight(.semibold))
+                            }
+                        }
+
+                        if let activeIngredient = officialActiveIngredient {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(L10n.tr("official_info_active_ingredient"))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(activeIngredient)
+                                    .font(.subheadline.weight(.semibold))
+                            }
+                        }
+
+                        if let laboratory = officialLaboratory {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(L10n.tr("official_info_laboratory"))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(laboratory)
+                                    .font(.subheadline.weight(.semibold))
+                            }
+                        }
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(L10n.tr("official_info_source"))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(L10n.tr("official_info_source_value"))
+                                .font(.subheadline.weight(.semibold))
+                        }
+
+                        if isAEMPSIntegrationEnabled, let url = officialProspectoURL {
+                            Link(destination: url) {
+                                Label(L10n.tr("official_info_leaflet_button"), systemImage: "doc.text")
+                            }
+                        }
+                    }
+                }
+
+                if canToggleTaken {
+                    Section(L10n.tr("detail_section_status_toggle")) {
+                        Button {
+                            toggleTaken()
+                        } label: {
+                            HStack {
+                                Spacer()
+                                Text(log.isTaken ? L10n.tr("detail_status_taken_current") : L10n.tr("detail_status_not_taken_current"))
+                                    .font(.headline)
+                                    .padding(.vertical, 12)
+                                Spacer()
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(log.isTaken ? AppTheme.brandRed : AppTheme.brandBlue)
+                    }
+                }
+
+
+                if log.isTaken {
+                    Section(L10n.tr("detail_section_time")) {
+                        // La hora solo se puede editar si está tomado
+                        DatePicker(
+                            L10n.tr("detail_label_time_taken"),
+                            selection: takenAtBinding,
+                            displayedComponents: [.hourAndMinute]
+                        )
+                    }
+                }
+
+                if medication.kind == .scheduled {
+                    Section {
+                        Button(role: .destructive) {
+                            showRemoveForDayConfirmation = true
+                        } label: {
+                            Text(L10n.tr("detail_remove_for_day"))
+                                .frame(maxWidth: .infinity, alignment: .center)
+                        }
+                    }
+                }
+
+                if medication.kind == .occasional {
+                    Section {
+                        Button(role: .destructive) {
+                            showDeleteOccasionalConfirmation = true
+                        } label: {
+                            Text(L10n.tr("edit_delete_medication"))
+                                .frame(maxWidth: .infinity, alignment: .center)
+                        }
+                    }
+                }
+            }
+            .navigationTitle(L10n.tr("detail_title"))
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(L10n.tr("button_close")) { dismiss() }
+                }
+            }
+            .alert(L10n.tr("detail_remove_for_day_title"), isPresented: $showRemoveForDayConfirmation) {
+                Button(L10n.tr("button_cancel"), role: .cancel) {}
+                Button(L10n.tr("detail_remove_for_day_confirm"), role: .destructive) {
+                    removeScheduledForThisDay()
+                }
+            } message: {
+                Text(L10n.tr("detail_remove_for_day_message"))
+            }
+            .alert(L10n.tr("edit_delete_title"), isPresented: $showDeleteOccasionalConfirmation) {
+                Button(L10n.tr("button_cancel"), role: .cancel) {}
+                Button(L10n.tr("edit_delete_confirm"), role: .destructive) {
+                    deleteOccasionalMedication()
+                }
+            } message: {
+                Text(L10n.tr("edit_delete_message"))
+            }
+        }
+    }
+
+    // MARK: - Bindings
+
+    private var takenBinding: Binding<Bool> {
+        Binding(
+            get: { log.isTaken },
+            set: { newValue in
+                if newValue {
+                    // Si pasa a "Tomado" y no tenía hora:
+                    // - hoy: hora actual
+                    // - otro día: sin hora (se mostrará como no especificada)
+                    if log.takenAt == nil {
+                        let cal = Calendar.current
+                        let isToday = cal.isDateInToday(dayKey)
+                        log.takenAt = isToday ? Date() : nil
+                    }
+                    log.isTaken = true
+                } else {
+                    log.isTaken = false
+                    log.takenAt = nil
+                }
+                try? modelContext.save()
+            }
+        )
+    }
+
+    private var takenAtBinding: Binding<Date> {
+        Binding(
+            get: { log.takenAt ?? dayKey },
+            set: { newTime in
+                // Guardamos la hora elegida pero en el MISMO día (dayKey)
+                let cal = Calendar.current
+                let hm = cal.dateComponents([.hour, .minute], from: newTime)
+                var comps = cal.dateComponents([.year, .month, .day], from: dayKey)
+                comps.hour = hm.hour
+                comps.minute = hm.minute
+                let final = cal.date(from: comps) ?? dayKey
+
+                log.takenAt = final
+                try? modelContext.save()
+            }
+        )
+    }
+
+    // MARK: - Helpers
+
+    private func dateString(_ d: Date) -> String {
+        let f = DateFormatter()
+        f.locale = .current
+        f.dateStyle = .full
+        f.timeStyle = .none
+        return f.string(from: d)
+    }
+
+    private func normalized(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func resolvedProspectoURL(from raw: String?) -> URL? {
+        guard let raw = normalized(raw) else { return nil }
+        if let direct = URL(string: raw), direct.scheme != nil {
+            return direct
+        }
+        if raw.hasPrefix("www."),
+           let https = URL(string: "https://\(raw)") {
+            return https
+        }
+        if raw.hasPrefix("cima.aemps.es"),
+           let https = URL(string: "https://\(raw)") {
+            return https
+        }
+        return nil
+    }
+
+    private func toggleTaken() {
+        if !canToggleTaken { return }
+
+        let cal = Calendar.current
+        let isToday = cal.isDateInToday(dayKey)
+
+        if log.isTaken {
+            // Pasar a "No tomado"
+            log.isTaken = false
+            log.takenAt = nil
+        } else {
+            // Pasar a "Tomado"
+            log.isTaken = true
+            if log.takenAt == nil {
+                log.takenAt = isToday ? Date() : nil
+            }
+        }
+
+        try? modelContext.save()
+    }
+
+    @ViewBuilder
+    private var medicationThumbnail: some View {
+        if let data = medication.photoData,
+           let ui = UIImage(data: data) {
+            Image(uiImage: ui)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 44, height: 44)
+                .clipped()
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+        } else {
+            MedicationDefaultArtworkView(
+                kind: MedicationDefaultArtwork.kind(for: medication),
+                width: 44,
+                height: 44,
+                cornerRadius: 8
+            )
+        }
+    }
+
+    private func removeScheduledForThisDay() {
+        guard medication.kind == .scheduled else { return }
+        medication.setSkipped(true, on: dayKey)
+        modelContext.delete(log)
+        try? modelContext.save()
+        dismiss()
+    }
+
+    private func deleteOccasionalMedication() {
+        guard medication.kind == .occasional else { return }
+        for entry in allLogs where entry.medicationID == medication.id {
+            modelContext.delete(entry)
+        }
+        NotificationService.cancelOccasionalReminder(medicationID: medication.id)
+        modelContext.delete(medication)
+        try? modelContext.save()
+        dismiss()
+    }
+
+}

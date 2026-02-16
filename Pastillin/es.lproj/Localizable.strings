@@ -1,0 +1,250 @@
+"content_item_at_format" = "Elemento a las %@";
+"content_add_item" = "Añadir elemento";
+"content_select_item" = "Selecciona un elemento";
+
+"tab_today" = "Hoy";
+"tab_calendar" = "Calendario";
+"tab_medications" = "Medicinas";
+"tab_settings" = "Ajustes";
+
+"today_empty" = "Nada para hoy";
+"today_title" = "Hoy";
+"taken_fem" = "Tomada";
+"not_taken_fem" = "No tomada";
+
+"calendar_title" = "Calendario";
+
+"medications_title" = "Medicinas";
+"medications_section_scheduled" = "Tratamientos pautados";
+"medications_section_occasional" = "Uso ocasional";
+"medication_add_type_title" = "Tipo de medicamento";
+"medication_add_scheduled" = "Medicamento pautado";
+"medication_add_occasional" = "Medicamento de uso ocasional";
+"medication_inactive_badge" = "Desactivada";
+"medication_occasional_badge" = "De uso ocasional";
+"medication_occasional_badge_short" = "Uso ocasional";
+"summary_format" = "%@ · inicio %@%@";
+"summary_end_format" = " · fin %@";
+"summary_start_line_format" = "Inicio %@";
+"summary_end_line_format" = "Fin %@";
+"summary_occasional_date_line_format" = "Fecha %@";
+"summary_chronic" = "Crónico";
+
+"unit_day_one" = "día";
+"unit_day_other" = "días";
+"unit_month_one" = "mes";
+"unit_month_other" = "meses";
+"recurrence_daily" = "Diario";
+"recurrence_monthly" = "Mensual";
+"recurrence_every_days_format" = "Cada %d días";
+"recurrence_every_months_format" = "Cada %d meses";
+
+"section_medication" = "Medicamento";
+"edit_field_name" = "Nombre";
+"edit_field_note_optional" = "Nota (opcional)";
+"edit_toggle_active" = "Activa";
+"edit_section_schedule" = "Pauta";
+"edit_picker_unit" = "Unidad";
+"edit_unit_days" = "Días";
+"edit_unit_months" = "Meses";
+"edit_toggle_daily" = "Diario";
+"edit_schedule_pattern_label" = "Pauta";
+"edit_schedule_every_prefix" = "Cada";
+"edit_schedule_number" = "Número";
+"edit_stepper_every_format" = "Cada %d %@";
+"edit_date_start" = "Inicio";
+"edit_toggle_chronic" = "Crónico";
+"edit_date_end_included" = "Día de fin (Incluido)";
+"occasional_section_date" = "Fecha";
+"occasional_date" = "Fecha de toma";
+"occasional_taken_time" = "Hora de la toma";
+"occasional_reminder_toggle" = "Generar aviso";
+"occasional_reminder_time" = "Hora del aviso";
+"edit_section_history_format" = "Historial (últimas %d)";
+"edit_title_new" = "Nueva medicina";
+"edit_title_new_occasional" = "Nuevo uso ocasional";
+"edit_title_edit" = "Editar medicina";
+"edit_delete_medication" = "Eliminar medicamento";
+"edit_delete_title" = "Eliminar medicamento";
+"edit_delete_message" = "Esta acción eliminará también su historial.";
+"edit_delete_confirm" = "Eliminar";
+"button_cancel" = "Cancelar";
+"button_save" = "Guardar";
+"button_edit" = "Editar";
+
+"history_taken_time_format" = "Tomada · %@";
+"history_not_taken" = "No tomada";
+"time_unspecified" = "Hora no especificada";
+
+"day_empty" = "No tocaba nada";
+"status_taken_masc" = "Tomado";
+"status_not_taken_masc" = "No tomado";
+"button_close" = "Cerrar";
+
+"detail_day_label_format" = "Día: %@";
+"detail_section_status" = "Estado";
+"detail_section_status_toggle" = "Estado (pulsar para cambiar)";
+"detail_action_mark_taken" = "Tomado";
+"detail_action_mark_not_taken" = "No tomado";
+"detail_status_taken_current" = "Tomado";
+"detail_status_not_taken_current" = "No Tomado";
+"detail_section_time" = "Hora";
+"detail_label_time_taken" = "Hora tomada";
+"detail_title" = "Detalle";
+"detail_remove_for_day" = "Eliminar de este día";
+"detail_remove_for_day_title" = "Eliminar de este día";
+"detail_remove_for_day_message" = "Solo se eliminará este día. El tratamiento seguirá activo en otras fechas.";
+"detail_remove_for_day_confirm" = "Eliminar día";
+
+"settings_title" = "Ajustes";
+"settings_section_reminder" = "Recordatorio diario";
+"settings_toggle_enable" = "Activar recordatorio diario";
+"settings_label_time" = "Hora de aviso";
+"settings_section_report" = "Informe médico";
+"settings_label_from" = "Desde";
+"settings_label_to" = "Hasta";
+"settings_button_generate_pdf" = "Generar PDF";
+"settings_button_share_report" = "Compartir/Guardar informe";
+"error_enable_reminder" = "No se pudo activar el recordatorio.";
+"error_reschedule_reminder" = "No se pudo reprogramar el recordatorio.";
+"error_generate_report" = "No se pudo generar el informe.";
+
+"notification_action_open" = "Abrir y marcar";
+"notification_action_snooze_1h" = "Posponer 1 hora";
+"notification_title" = "Medicaciones de hoy";
+"notification_body" = "Entra para marcar lo que has tomado.";
+"notification_occasional_title" = "Recordatorio de medicación";
+"notification_occasional_body_format" = "Debes tomar %@.";
+
+"report_filename_prefix" = "InformeMedicacion";
+"report_title" = "Informe de medicación";
+"report_period_format" = "Periodo: %@ → %@";
+"report_day_format" = "%@";
+"report_line_format" = "• %@: %@";
+"report_line_with_time_format" = "• %@: %@  (hora: %@)";
+"report_taken" = "Tomado";
+"report_not_taken" = "No tomado";
+"report_occasional_badge" = "De uso ocasional";
+"report_general_title" = "Datos generales de medicación";
+"report_general_chronic_section" = "Tratamientos crónicos";
+"report_general_scheduled_section" = "Tratamientos pautados (con fin)";
+"report_general_occasional_section" = "Medicamentos de uso ocasional";
+"report_general_line_chronic" = "%@ · inicio %@";
+"report_general_line_scheduled" = "%@ · inicio %@ · fin %@";
+"report_general_line_occasional" = "%@ · fecha de toma %@";
+"report_general_line_occasional_with_time" = "%@ · fecha de toma %@ · hora %@";
+"report_general_empty" = "Sin medicamentos";
+"report_daily_section_title" = "Detalle diario";
+
+"section_photo" = "Foto";
+"photo_empty" = "Sin foto";
+"photo_pick" = "Elegir de galería";
+"photo_take" = "Hacer foto";
+"photo_remove" = "Eliminar foto";
+
+"photo_camera_unavailable_title" = "Cámara no disponible";
+"photo_camera_unavailable_message" = "La cámara no está disponible en el simulador.";
+"button_ok" = "OK";
+
+"photo_choose" = "Añadir foto";
+"photo_change" = "Cambiar foto";
+"photo_choose_title" = "Selecciona una opción";
+
+"settings_section_help" = "Ayuda";
+"settings_open_help" = "Ver ayuda de la aplicación";
+
+"help_title" = "Ayuda";
+"help_intro" = "Esta app te ayuda a organizar tus medicinas y marcar lo que has tomado. Está pensada para usarla de forma simple, en pocos pasos.";
+
+"help_section_tabs" = "Secciones";
+"help_tab_today_title" = "Hoy";
+"help_tab_today_text" = "Aquí ves lo que te toca hoy. Puedes marcar Tomada o No tomada y abrir el detalle de cada medicina.";
+"help_tab_calendar_title" = "Calendario";
+"help_tab_calendar_text" = "Aquí puedes mirar cualquier día: pasado, hoy o futuro. Al tocar un día verás su lista de medicinas.";
+"help_tab_medications_title" = "Medicinas";
+"help_tab_medications_text" = "Aquí creas, editas y borras medicinas. También puedes cambiar foto, notas y fechas.";
+"help_tab_settings_title" = "Ajustes";
+"help_tab_settings_text" = "Aquí activas el aviso diario y puedes generar el informe PDF.";
+
+"help_section_flows" = "Pasos principales";
+"help_flow_create_scheduled_title" = "Crear una medicina pautada";
+"help_flow_create_scheduled_text" = "Ve a Medicinas, pulsa +, elige Medicamento pautado, rellena los datos y pulsa Guardar.";
+"help_flow_create_occasional_title" = "Crear una medicina de uso ocasional";
+"help_flow_create_occasional_text" = "Puedes crearla desde Hoy, Calendario o Medicinas con el botón +. Elige fecha y guarda.";
+"help_flow_mark_title" = "Marcar una toma";
+"help_flow_mark_text" = "En Hoy (o en el día del calendario), pulsa el botón Tomada/No tomada.";
+"help_flow_remove_day_title" = "Quitar una toma de un día";
+"help_flow_remove_day_text" = "Abre el detalle y pulsa Eliminar de este día. Solo se borra ese día.";
+"help_flow_remove_all_title" = "Borrar una medicina completa";
+"help_flow_remove_all_text" = "Hazlo desde la sección Medicinas, entrando al detalle y pulsando Eliminar medicamento.";
+
+"help_section_notes" = "Notas útiles";
+"help_note_time" = "En Ajustes puedes configurar el aviso diario si lo quieres.";
+"help_note_future" = "Las medicinas de fechas futuras no se pueden marcar como tomadas.";
+"help_note_report" = "El informe PDF se genera desde Ajustes, en la sección Informe médico.";
+"help_note_mac" = "Hay una conversión de la aplicación para MAC que puedes utilizar si prefieres gestionar la aplicación con teclado y ratón. Puedes importar tus datos luego a esta versión (o viceversa) utilizando las funcionalidades de Copia de seguridad que encontrarás en Ajustes.";
+
+"autocomplete_loading" = "Buscando medicamentos...";
+"autocomplete_no_results" = "No se han encontrado medicamentos.";
+"official_info_section_title" = "Información oficial";
+"official_info_full_name" = "Nombre completo";
+"official_info_active_ingredient" = "Principio activo";
+"official_info_laboratory" = "Laboratorio";
+"official_info_source" = "Fuente";
+"official_info_source_value" = "CIMA (AEMPS)";
+"official_info_leaflet_button" = "Ver prospecto oficial";
+"official_info_loading" = "Cargando información oficial...";
+"settings_section_autocomplete" = "Integración con AEMPS";
+"settings_toggle_autocomplete" = "Activar integración con AEMPS";
+"settings_aemps_info_title" = "Integración con AEMPS";
+"settings_aemps_info_message" = "Esta integración permite buscar en la Base de Datos de Medicamentos en ESPAÑOL de la AEMPS para autocompletar nombres y obtener información oficial adicional del medicamento, incluido el acceso al prospecto. Si desactivas este interruptor, se desactiva esta integración.";
+"settings_section_backup" = "Copia de seguridad";
+"settings_button_generate_backup" = "Generar copia";
+"settings_button_share_backup" = "Compartir/Guardar copia";
+"settings_button_restore_backup" = "Cargar copia";
+"settings_restore_confirm_title" = "Restaurar copia";
+"settings_restore_confirm_message" = "Esto reemplazará todos los datos actuales por los de la copia seleccionada. ¿Deseas continuar?";
+"settings_restore_confirm_button" = "Restaurar";
+"error_generate_backup" = "No se pudo generar la copia de seguridad.";
+"error_restore_backup" = "No se pudo restaurar la copia de seguridad.";
+"empty_medicines_fallback" = "No hay medicinas que tomar.";
+"button_done" = "Listo";
+"settings_section_appearance" = "Apariencia";
+"settings_appearance_mode" = "Modo de color";
+"settings_appearance_system" = "Seguir sistema";
+"settings_appearance_light" = "Claro";
+"settings_appearance_dark" = "Oscuro";
+"today_open_help" = "Ver ayuda";
+"today_overlay_plus_hint" = "Aquí para empezar a añadir medicinas.";
+"today_overlay_help_hint" = "Aquí para aprender como funciona la aplicación.";
+"settings_section_danger" = "Zona de peligro";
+"settings_button_delete_all_data" = "Borrar todos los datos";
+"settings_delete_all_confirm_title" = "Borrar todos los datos";
+"settings_delete_all_confirm_message" = "Esta acción no se puede deshacer. Se borrarán todos los datos de la aplicación. Recomendamos hacer una copia de seguridad antes de continuar.";
+"settings_delete_all_confirm_button" = "Borrar todo";
+"error_delete_all_data" = "No se pudieron borrar todos los datos.";
+
+"official_info_leaflet_unavailable_title" = "Prospecto no disponible";
+"official_info_leaflet_unavailable_message" = "No se pudo abrir el prospecto oficial para este medicamento.";
+
+"settings_delete_all_success_title" = "Datos borrados";
+"settings_delete_all_success_message" = "Todos los datos han sido borrados.";
+
+"settings_section_legal" = "Legal";
+"settings_open_legal" = "Aviso legal / Privacidad";
+"legal_disclaimer_title" = "Aviso legal";
+"legal_disclaimer_intro" = "Esta aplicación está creada para ayudar a organizar tomas de medicación.";
+"legal_disclaimer_point_1" = "No sustituye el consejo, diagnóstico ni tratamiento de un médico o profesional sanitario.";
+"legal_disclaimer_point_2" = "Debes seguir siempre las indicaciones de tu médico y del prospecto oficial de cada medicamento.";
+"legal_disclaimer_point_3" = "El usuario es responsable del uso de la aplicación y de revisar que los datos introducidos sean correctos.";
+"legal_disclaimer_point_4" = "La aplicación puede contener errores o fallos técnicos. No se garantiza la ausencia de incidencias.";
+"legal_disclaimer_point_5" = "El desarrollador no se hace responsable de daños directos o indirectos derivados del uso o mal uso de la aplicación.";
+"legal_disclaimer_point_6" = "Este proyecto se ha desarrollado sin ánimo de lucro.";
+"legal_disclaimer_accept" = "He leído y entiendo este aviso";
+"legal_disclaimer_privacy_title" = "Política de Privacidad";
+"legal_disclaimer_privacy_updated" = "Última actualización: 11 Febrero 2026";
+"legal_disclaimer_privacy_content" = "1. Introducción\n\nEsta Política de Privacidad describe cómo Pastillín respeta y protege la privacidad de los usuarios. La aplicación ha sido diseñada para funcionar sin recopilar, almacenar ni compartir datos personales del usuario.\n\n2. Datos que NO se recopilan\n\nPastillín NO recopila, procesa ni transmite:\n\nDatos personales identificables\nInformación médica o clínica\nDatos de salud vinculados a una persona\nDatos de localización\nDirecciones IP\nIdentificadores del dispositivo\nInformación de contacto\nDatos de uso o analítica\nDatos para publicidad o seguimiento\n\n3. Datos introducidos por el usuario\n\nCualquier información introducida por el usuario (por ejemplo, nombres de medicamentos, horarios o recordatorios):\n\nSe almacena exclusivamente de forma local en el dispositivo del usuario.\nNo se envía a servidores externos.\nNo es accesible por el desarrollador.\nNo se comparte con terceros.\n\n4. Uso de APIs externas\n\nLa aplicación puede utilizar fuentes públicas de información únicamente para ayudar al usuario a introducir nombres de medicamentos (por ejemplo, funciones de autocompletado).\n\nNo se envía información personal del usuario.\nNo se asocian las búsquedas a ningún identificador personal.\nLas consultas no permiten identificar al usuario.\n\n5. Copias de seguridad\n\nLos datos almacenados localmente pueden formar parte de las copias de seguridad del dispositivo realizadas por el sistema operativo (por ejemplo, iCloud), según la configuración del propio usuario.\nEl desarrollador no tiene acceso a dichas copias.\n\n6. Compartición de datos\n\nPastillín no comparte datos con terceros, ya que no recopila ningún dato.\n\n7. Publicidad y analítica\n\nLa aplicación:\n\nNo incluye publicidad.\nNo utiliza servicios de analítica.\nNo realiza seguimiento del usuario.\n\n8. Menores de edad\n\nLa aplicación no está dirigida específicamente a menores de edad y no recopila ningún dato personal de usuarios de ninguna edad.\n\n9. Finalidad de la aplicación\n\nPastillín es una herramienta de organización personal.\nNo proporciona asesoramiento médico, no sustituye la consulta con profesionales sanitarios y no realiza diagnósticos ni recomendaciones clínicas.\n\n10. Cambios en esta política\n\nSi esta Política de Privacidad se actualiza, la nueva versión estará disponible públicamente en esta misma ubicación.\n\n11. Contacto\n\nSi tienes alguna pregunta sobre esta Política de Privacidad, puedes contactar en:\n\nCorreo electrónico: malvadoficial@gmail.com";
+"legal_disclaimer_privacy_point_1" = "La aplicación no solicita ni guarda datos personales identificativos.";
+"legal_disclaimer_privacy_point_2" = "Los datos de uso de medicación se guardan localmente en tu dispositivo.";
+"legal_disclaimer_privacy_point_3" = "No se envía información a servidores del desarrollador ni se utiliza con fines comerciales.";
+"legal_disclaimer_privacy_point_4" = "Solo se envían y reciben datos para consultar la API pública de CIMA-AEMPS (organismo público), exclusivamente para obtener información de medicamentos.";

@@ -1,0 +1,343 @@
+import SwiftUI
+import SwiftData
+import UniformTypeIdentifiers
+
+struct SettingsView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query private var settings: [AppSettings]
+    @AppStorage("legalDisclaimerAccepted") private var legalDisclaimerAccepted = false
+
+    @State private var reminderTime: Date = Date()
+    @State private var enabled: Bool = false
+    @State private var autocompleteEnabled: Bool = true
+    @State private var appearanceMode: UIAppearanceMode = .system
+
+    @State private var reportFrom: Date = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+    @State private var reportTo: Date = Date()
+    @State private var reportURL: URL? = nil
+
+    @State private var backupURL: URL? = nil
+    @State private var showingBackupImporter = false
+    @State private var pendingRestoreURL: URL? = nil
+    @State private var showRestoreConfirmation = false
+    @State private var showDeleteAllConfirmation = false
+    @State private var showDeleteAllSuccessAlert = false
+    @State private var showLegalDisclaimerAfterDelete = false
+    @State private var showAEMPSInfoAlert = false
+
+    @State private var errorText: String? = nil
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(L10n.tr("settings_section_reminder")) {
+                    Toggle(L10n.tr("settings_toggle_enable"), isOn: $enabled)
+                        .onChange(of: enabled) { _, newValue in
+                            Task { await applyNotificationSetting(newValue) }
+                        }
+
+                    DatePicker(L10n.tr("settings_label_time"), selection: $reminderTime, displayedComponents: [.hourAndMinute])
+                        .disabled(!enabled)
+                        .onChange(of: reminderTime) { _, _ in
+                            Task { await rescheduleIfNeeded() }
+                        }
+                }
+
+                Section(L10n.tr("settings_section_appearance")) {
+                    Picker(L10n.tr("settings_appearance_mode"), selection: $appearanceMode) {
+                        Text(L10n.tr("settings_appearance_system")).tag(UIAppearanceMode.system)
+                        Text(L10n.tr("settings_appearance_light")).tag(UIAppearanceMode.light)
+                        Text(L10n.tr("settings_appearance_dark")).tag(UIAppearanceMode.dark)
+                    }
+                    .onChange(of: appearanceMode) { _, newValue in
+                        persistSettings(
+                            hour: hourMinute().0,
+                            minute: hourMinute().1,
+                            enabled: enabled,
+                            autocompleteEnabled: autocompleteEnabled,
+                            appearanceMode: newValue
+                        )
+                    }
+                }
+
+                Section {
+                    Toggle(L10n.tr("settings_toggle_autocomplete"), isOn: $autocompleteEnabled)
+                        .onChange(of: autocompleteEnabled) { _, newValue in
+                            persistSettings(
+                                hour: hourMinute().0,
+                                minute: hourMinute().1,
+                                enabled: enabled,
+                                autocompleteEnabled: newValue,
+                                appearanceMode: appearanceMode
+                            )
+                        }
+                } header: {
+                    HStack(spacing: 8) {
+                        Text(L10n.tr("settings_section_autocomplete"))
+                        Button {
+                            showAEMPSInfoAlert = true
+                        } label: {
+                            Image(systemName: "questionmark.circle")
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(AppTheme.brandBlue)
+                    }
+                }
+
+                Section(L10n.tr("settings_section_report")) {
+                    DatePicker(L10n.tr("settings_label_from"), selection: $reportFrom, displayedComponents: [.date])
+                    DatePicker(L10n.tr("settings_label_to"), selection: $reportTo, displayedComponents: [.date])
+
+                    Button(L10n.tr("settings_button_generate_pdf")) { generateReport() }
+
+                    if let url = reportURL {
+                        ShareLink(item: url) {
+                            Text(L10n.tr("settings_button_share_report"))
+                        }
+                    }
+                }
+
+                Section(L10n.tr("settings_section_backup")) {
+                    Button(L10n.tr("settings_button_generate_backup")) {
+                        generateBackup()
+                    }
+
+                    if let url = backupURL {
+                        ShareLink(item: url) {
+                            Text(L10n.tr("settings_button_share_backup"))
+                        }
+                    }
+
+                    Button(L10n.tr("settings_button_restore_backup")) {
+                        showingBackupImporter = true
+                    }
+                }
+
+                Section(L10n.tr("settings_section_help")) {
+                    NavigationLink {
+                        HelpView()
+                    } label: {
+                        Label(L10n.tr("settings_open_help"), systemImage: "questionmark.circle")
+                    }
+                }
+
+                if let e = errorText {
+                    Section {
+                        Text(e).foregroundStyle(AppTheme.brandRed)
+                    }
+                }
+
+                Section {
+                    Button(role: .destructive) {
+                        showDeleteAllConfirmation = true
+                    } label: {
+                        Text(L10n.tr("settings_button_delete_all_data"))
+                    }
+                } header: {
+                    Label {
+                        Text(L10n.tr("settings_section_danger"))
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(AppTheme.brandRed)
+                    }
+                }
+
+                Section(L10n.tr("settings_section_legal")) {
+                    NavigationLink {
+                        LegalDisclaimerView(isMandatory: false, onAccept: nil)
+                    } label: {
+                        Label(L10n.tr("settings_open_legal"), systemImage: "doc.text")
+                    }
+                }
+            }
+            .safeAreaPadding(.bottom, 84)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    NavigationTitleWithIcon(
+                        title: L10n.tr("settings_title"),
+                        systemImage: "gearshape",
+                        color: .black
+                    )
+                }
+            }
+            .onAppear { loadOrCreateSettings() }
+            .fileImporter(
+                isPresented: $showingBackupImporter,
+                allowedContentTypes: [.json],
+                allowsMultipleSelection: false
+            ) { result in
+                switch result {
+                case .success(let urls):
+                    guard let url = urls.first else { return }
+                    pendingRestoreURL = url
+                    showRestoreConfirmation = true
+                case .failure:
+                    errorText = L10n.tr("error_restore_backup")
+                }
+            }
+            .alert(L10n.tr("settings_restore_confirm_title"), isPresented: $showRestoreConfirmation) {
+                Button(L10n.tr("button_cancel"), role: .cancel) {
+                    pendingRestoreURL = nil
+                }
+                Button(L10n.tr("settings_restore_confirm_button"), role: .destructive) {
+                    restoreBackupIfConfirmed()
+                }
+            } message: {
+                Text(L10n.tr("settings_restore_confirm_message"))
+            }
+            .alert(L10n.tr("settings_delete_all_confirm_title"), isPresented: $showDeleteAllConfirmation) {
+                Button(L10n.tr("button_cancel"), role: .cancel) {}
+                Button(L10n.tr("settings_delete_all_confirm_button"), role: .destructive) {
+                    deleteAllDataIfConfirmed()
+                }
+            } message: {
+                Text(L10n.tr("settings_delete_all_confirm_message"))
+            }
+            .alert(L10n.tr("settings_delete_all_success_title"), isPresented: $showDeleteAllSuccessAlert) {
+                Button(L10n.tr("button_ok"), role: .cancel) {
+                    showLegalDisclaimerAfterDelete = true
+                }
+            } message: {
+                Text(L10n.tr("settings_delete_all_success_message"))
+            }
+            .alert(L10n.tr("settings_aemps_info_title"), isPresented: $showAEMPSInfoAlert) {
+                Button(L10n.tr("button_ok"), role: .cancel) {}
+            } message: {
+                Text(L10n.tr("settings_aemps_info_message"))
+            }
+            .fullScreenCover(isPresented: $showLegalDisclaimerAfterDelete) {
+                LegalDisclaimerView(isMandatory: true) {
+                    legalDisclaimerAccepted = true
+                    showLegalDisclaimerAfterDelete = false
+                }
+            }
+        }
+    }
+
+    private func loadOrCreateSettings() {
+        let s: AppSettings
+        if let existing = settings.first(where: { $0.id == "app" }) {
+            s = existing
+        } else {
+            s = AppSettings()
+            modelContext.insert(s)
+            try? modelContext.save()
+        }
+
+        enabled = s.notificationsEnabled
+        autocompleteEnabled = s.medicationAutocompleteEnabled
+        appearanceMode = s.uiAppearanceMode
+
+        var comps = DateComponents()
+        comps.hour = s.reminderHour
+        comps.minute = s.reminderMinute
+        reminderTime = Calendar.current.date(from: comps) ?? Date()
+    }
+
+    private func persistSettings(hour: Int, minute: Int, enabled: Bool, autocompleteEnabled: Bool, appearanceMode: UIAppearanceMode) {
+        let s = settings.first(where: { $0.id == "app" }) ?? AppSettings()
+        if s.id != "app" { s.id = "app" }
+        s.reminderHour = hour
+        s.reminderMinute = minute
+        s.notificationsEnabled = enabled
+        s.medicationAutocompleteEnabled = autocompleteEnabled
+        s.uiAppearanceMode = appearanceMode
+        if !settings.contains(where: { $0.id == "app" }) {
+            modelContext.insert(s)
+        }
+        try? modelContext.save()
+    }
+
+    private func hourMinute() -> (Int, Int) {
+        let c = Calendar.current.dateComponents([.hour, .minute], from: reminderTime)
+        return (c.hour ?? 10, c.minute ?? 0)
+    }
+
+    private func applyNotificationSetting(_ turnOn: Bool) async {
+        let (h, m) = hourMinute()
+        if turnOn {
+            do {
+                let ok = try await NotificationService.requestAuthorization()
+                if !ok {
+                    enabled = false
+                    persistSettings(hour: h, minute: m, enabled: false, autocompleteEnabled: autocompleteEnabled, appearanceMode: appearanceMode)
+                    return
+                }
+                try await NotificationService.scheduleDailyReminder(hour: h, minute: m)
+                persistSettings(hour: h, minute: m, enabled: true, autocompleteEnabled: autocompleteEnabled, appearanceMode: appearanceMode)
+            } catch {
+                errorText = L10n.tr("error_enable_reminder")
+                enabled = false
+                persistSettings(hour: h, minute: m, enabled: false, autocompleteEnabled: autocompleteEnabled, appearanceMode: appearanceMode)
+            }
+        } else {
+            NotificationService.cancelDailyReminder()
+            persistSettings(hour: h, minute: m, enabled: false, autocompleteEnabled: autocompleteEnabled, appearanceMode: appearanceMode)
+        }
+    }
+
+    private func rescheduleIfNeeded() async {
+        let (h, m) = hourMinute()
+        persistSettings(hour: h, minute: m, enabled: enabled, autocompleteEnabled: autocompleteEnabled, appearanceMode: appearanceMode)
+
+        guard enabled else { return }
+        do {
+            try await NotificationService.scheduleDailyReminder(hour: h, minute: m)
+        } catch {
+            errorText = L10n.tr("error_reschedule_reminder")
+        }
+    }
+
+    private func generateReport() {
+        do {
+            reportURL = try ReportService.generatePDF(from: reportFrom, to: reportTo, modelContext: modelContext)
+            errorText = nil
+        } catch {
+            reportURL = nil
+            errorText = L10n.tr("error_generate_report")
+        }
+    }
+
+    private func generateBackup() {
+        do {
+            backupURL = try BackupService.generateBackup(modelContext: modelContext)
+            errorText = nil
+        } catch {
+            backupURL = nil
+            errorText = L10n.tr("error_generate_backup")
+        }
+    }
+
+    private func restoreBackupIfConfirmed() {
+        guard let url = pendingRestoreURL else { return }
+        pendingRestoreURL = nil
+
+        let granted = url.startAccessingSecurityScopedResource()
+        defer {
+            if granted { url.stopAccessingSecurityScopedResource() }
+        }
+
+        do {
+            try BackupService.restoreBackup(from: url, modelContext: modelContext)
+            loadOrCreateSettings()
+            errorText = nil
+        } catch {
+            errorText = L10n.tr("error_restore_backup")
+        }
+    }
+
+    private func deleteAllDataIfConfirmed() {
+        do {
+            try BackupService.clearAllData(modelContext: modelContext)
+            legalDisclaimerAccepted = false
+            loadOrCreateSettings()
+            reportURL = nil
+            backupURL = nil
+            errorText = nil
+            showDeleteAllSuccessAlert = true
+        } catch {
+            errorText = L10n.tr("error_delete_all_data")
+        }
+    }
+}
