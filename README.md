@@ -24,7 +24,8 @@ La aplicación ha sido diseñada para funcionar **sin recopilar, almacenar ni co
 - Datos de uso o analítica
 - Datos para publicidad o seguimiento
 
-Dado que no se recopilan datos, **no se venden ni se comparten datos con terceros**.
+Dado que no se recopilan datos, **no se venden ni se comparten datos con terceros**.  
+Esta información es coherente con las **etiquetas de privacidad mostradas en la App Store**.
 
 ---
 
@@ -47,11 +48,12 @@ La aplicación puede utilizar **fuentes públicas de información** únicamente 
 - Las consultas no se asocian a ningún identificador personal.
 - No es posible identificar al usuario a través de dichas consultas.
 
+La aplicación **no utiliza HealthKit ni accede a datos de salud del sistema**.
+
 ---
 
 ### 5. Notificaciones
-Las notificaciones de recordatorio se generan y gestionan **exclusivamente en el dispositivo del usuario**.  
-No se envía ningún dato a servidores externos para la gestión de notificaciones.
+Las notificaciones de recordatorio se generan **localmente** mediante las APIs del sistema operativo y **no implican transmisión de datos** a servidores externos.
 
 ---
 
@@ -119,7 +121,8 @@ The application is designed to operate **without collecting, storing, or sharing
 - Usage or analytics data
 - Advertising or tracking data
 
-Since no data is collected, **no data is sold or shared with third parties**.
+Since no data is collected, **no data is sold or shared with third parties**.  
+This information is consistent with the **App Store privacy labels**.
 
 ---
 
@@ -142,11 +145,12 @@ The application may use **public information sources** solely to assist users in
 - Queries are not associated with personal identifiers.
 - Users cannot be identified through these requests.
 
+The application **does not use HealthKit or access system health data**.
+
 ---
 
 ### 5. Notifications
-Reminder notifications are generated and managed **entirely on the user’s device**.  
-No data is sent to external servers for notification handling.
+Reminder notifications are generated **locally** using system APIs and **do not involve data transmission** to external servers.
 
 ---
 
