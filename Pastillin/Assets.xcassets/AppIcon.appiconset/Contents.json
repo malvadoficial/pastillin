@@ -1,7 +1,7 @@
 {
   "images" : [
     {
-      "filename" : "ChatGPT Image 11 feb 2026, 22_09_27.png",
+      "filename" : "icono.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -13,7 +13,7 @@
           "value" : "dark"
         }
       ],
-      "filename" : "ChatGPT Image 12 feb 2026, 23_27_15.png",
+      "filename" : "icono-dark.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -25,7 +25,7 @@
           "value" : "tinted"
         }
       ],
-      "filename" : "ChatGPT Image 12 feb 2026, 23_27_46.png",
+      "filename" : "icono-tinted.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
