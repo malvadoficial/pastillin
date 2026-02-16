@@ -118,7 +118,7 @@ struct MedicationLogDetailView: View {
                             }
                         }
                         .buttonStyle(.borderedProminent)
-                        .tint(log.isTaken ? AppTheme.brandRed : AppTheme.brandBlue)
+                        .tint(log.isTaken ? AppTheme.brandBlue : AppTheme.brandRed)
                     }
                 }
 

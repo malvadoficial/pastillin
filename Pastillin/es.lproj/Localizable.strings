@@ -100,6 +100,8 @@
 "settings_section_reminder" = "Recordatorio diario";
 "settings_toggle_enable" = "Activar recordatorio diario";
 "settings_label_time" = "Hora de aviso";
+"settings_label_time_format" = "Hora de aviso %d";
+"settings_add_reminder" = "Añadir aviso";
 "settings_section_report" = "Informe médico";
 "settings_label_from" = "Desde";
 "settings_label_to" = "Hasta";
@@ -154,34 +156,34 @@
 "settings_open_help" = "Ver ayuda de la aplicación";
 
 "help_title" = "Ayuda";
-"help_intro" = "Esta app te ayuda a organizar tus medicinas y marcar lo que has tomado. Está pensada para usarla de forma simple, en pocos pasos.";
+"help_intro" = "Esta app te ayuda a organizar tus medicinas, marcar tomas y consultar información oficial (CIMA-AEMPS). Está pensada para usarla de forma simple, en pocos pasos.";
 
 "help_section_tabs" = "Secciones";
 "help_tab_today_title" = "Hoy";
-"help_tab_today_text" = "Aquí ves lo que te toca hoy. Puedes marcar Tomada o No tomada y abrir el detalle de cada medicina.";
+"help_tab_today_text" = "Aquí ves lo que te toca hoy con la imagen de cada medicamento (personalizada o por defecto). Puedes marcar Tomado/No tomado, abrir el detalle y registrar tomas ocasionales desde el botón +.";
 "help_tab_calendar_title" = "Calendario";
-"help_tab_calendar_text" = "Aquí puedes mirar cualquier día: pasado, hoy o futuro. Al tocar un día verás su lista de medicinas.";
+"help_tab_calendar_text" = "Aquí puedes mirar cualquier día: pasado, hoy o futuro. Al tocar un día verás su lista de medicinas y podrás abrir el detalle con foto y estado.";
 "help_tab_medications_title" = "Medicinas";
-"help_tab_medications_text" = "Aquí creas, editas y borras medicinas. También puedes cambiar foto, notas y fechas.";
+"help_tab_medications_text" = "Aquí creas, editas y borras medicinas. También puedes cambiar foto, notas y fechas, indicar si es Crónico y definir Día de fin (Incluido) cuando no lo es. Si no hay foto, se muestra una imagen por defecto según el tipo de medicamento.";
 "help_tab_settings_title" = "Ajustes";
-"help_tab_settings_text" = "Aquí activas el aviso diario y puedes generar el informe PDF.";
+"help_tab_settings_text" = "Aquí activas hasta 3 avisos diarios, configuras su hora, y puedes generar el informe PDF, gestionar copias de seguridad y consultar Aviso legal / Privacidad.";
 
 "help_section_flows" = "Pasos principales";
 "help_flow_create_scheduled_title" = "Crear una medicina pautada";
-"help_flow_create_scheduled_text" = "Ve a Medicinas, pulsa +, elige Medicamento pautado, rellena los datos y pulsa Guardar.";
+"help_flow_create_scheduled_text" = "Ve a Medicinas, pulsa +, elige Medicamento pautado, rellena los datos y pulsa Guardar. Si no eliges foto, se mostrará una imagen por defecto según el tipo.";
 "help_flow_create_occasional_title" = "Crear una medicina de uso ocasional";
-"help_flow_create_occasional_text" = "Puedes crearla desde Hoy, Calendario o Medicinas con el botón +. Elige fecha y guarda.";
+"help_flow_create_occasional_text" = "Puedes crearla desde Hoy, Calendario o Medicinas con el botón +. Si la creas desde Hoy, puedes indicar la hora de toma (por defecto la actual).";
 "help_flow_mark_title" = "Marcar una toma";
-"help_flow_mark_text" = "En Hoy (o en el día del calendario), pulsa el botón Tomada/No tomada.";
+"help_flow_mark_text" = "En Hoy (o en el día del calendario), pulsa el botón de estado para alternar entre Tomado y No tomado. El botón se muestra en rojo cuando está No tomado y en azul cuando está Tomado.";
 "help_flow_remove_day_title" = "Quitar una toma de un día";
 "help_flow_remove_day_text" = "Abre el detalle y pulsa Eliminar de este día. Solo se borra ese día.";
 "help_flow_remove_all_title" = "Borrar una medicina completa";
 "help_flow_remove_all_text" = "Hazlo desde la sección Medicinas, entrando al detalle y pulsando Eliminar medicamento.";
 
 "help_section_notes" = "Notas útiles";
-"help_note_time" = "En Ajustes puedes configurar el aviso diario si lo quieres.";
+"help_note_time" = "En Ajustes puedes configurar hasta 3 avisos diarios y ajustar su hora.";
 "help_note_future" = "Las medicinas de fechas futuras no se pueden marcar como tomadas.";
-"help_note_report" = "El informe PDF se genera desde Ajustes, en la sección Informe médico.";
+"help_note_report" = "El informe PDF se genera desde Ajustes, en la sección Informe médico. También puedes activar/desactivar la integración oficial con AEMPS y consultar el prospecto cuando esté disponible.";
 "help_note_mac" = "Hay una conversión de la aplicación para MAC que puedes utilizar si prefieres gestionar la aplicación con teclado y ratón. Puedes importar tus datos luego a esta versión (o viceversa) utilizando las funcionalidades de Copia de seguridad que encontrarás en Ajustes.";
 
 "autocomplete_loading" = "Buscando medicamentos...";

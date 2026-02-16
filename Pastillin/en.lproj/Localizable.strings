@@ -100,6 +100,8 @@
 "settings_section_reminder" = "Daily reminder";
 "settings_toggle_enable" = "Enable reminder";
 "settings_label_time" = "Time";
+"settings_label_time_format" = "Reminder time %d";
+"settings_add_reminder" = "Add reminder";
 "settings_section_report" = "Medical report";
 "settings_label_from" = "From";
 "settings_label_to" = "To";
@@ -154,34 +156,34 @@
 "settings_open_help" = "View app help";
 
 "help_title" = "Help";
-"help_intro" = "This app helps you organize your medicines and mark what you have taken. It is designed to be simple and easy to use.";
+"help_intro" = "This app helps you organize your medicines, mark intakes, and consult official information (CIMA-AEMPS). It is designed to be simple and easy to use.";
 
 "help_section_tabs" = "Sections";
 "help_tab_today_title" = "Today";
-"help_tab_today_text" = "Here you can see today's medicines. You can mark Taken or Not taken and open each medicine detail.";
+"help_tab_today_text" = "Here you can see today's medicines with each medication image (custom or default). You can mark Taken/Not taken, open detail, and add occasional intakes from the + button.";
 "help_tab_calendar_title" = "Calendar";
-"help_tab_calendar_text" = "Here you can check any day: past, today, or future. Tap a day to see its medicine list.";
+"help_tab_calendar_text" = "Here you can check any day: past, today, or future. Tap a day to see its medicine list and open detail with photo and status.";
 "help_tab_medications_title" = "Medications";
-"help_tab_medications_text" = "Here you create, edit, and delete medicines. You can also change photo, notes, and dates.";
+"help_tab_medications_text" = "Here you create, edit, and delete medicines. You can also change photo, notes, and dates, mark the treatment as Chronic, and set End day (Included) when it is not chronic.";
 "help_tab_settings_title" = "Settings";
-"help_tab_settings_text" = "Here you can enable the daily reminder and generate the PDF report.";
+"help_tab_settings_text" = "Here you can enable up to 3 daily reminders, configure their time, generate the PDF report, manage backups, and open Legal notice / Privacy.";
 
 "help_section_flows" = "Main steps";
 "help_flow_create_scheduled_title" = "Create a scheduled medicine";
-"help_flow_create_scheduled_text" = "Go to Medications, tap +, choose Scheduled medication, fill in the data, and tap Save.";
+"help_flow_create_scheduled_text" = "Go to Medications, tap +, choose Scheduled medication, fill in the data, and tap Save. If you do not choose a photo, a default image is shown by medication type.";
 "help_flow_create_occasional_title" = "Create an occasional-use medicine";
-"help_flow_create_occasional_text" = "You can create it from Today, Calendar, or Medications using the + button. Choose date and save.";
+"help_flow_create_occasional_text" = "You can create it from Today, Calendar, or Medications using the + button. If you create it from Today, you can set intake time (current time by default).";
 "help_flow_mark_title" = "Mark an intake";
-"help_flow_mark_text" = "In Today (or in the selected calendar day), tap Taken/Not taken.";
+"help_flow_mark_text" = "In Today (or in the selected calendar day), tap the status button to switch between Taken and Not taken. The button is red for Not taken and blue for Taken.";
 "help_flow_remove_day_title" = "Remove one day intake";
 "help_flow_remove_day_text" = "Open detail and tap Remove for this day. Only that day is removed.";
 "help_flow_remove_all_title" = "Delete a full medicine";
 "help_flow_remove_all_text" = "Do it from Medications, opening detail and tapping Delete medication.";
 
 "help_section_notes" = "Useful notes";
-"help_note_time" = "In Settings, you can enable the daily reminder if you want.";
+"help_note_time" = "In Settings, you can configure up to 3 daily reminders and set their times.";
 "help_note_future" = "Future-date medicines cannot be marked as taken.";
-"help_note_report" = "The PDF report is generated from Settings, in the Medical report section.";
+"help_note_report" = "The PDF report is generated from Settings, in the Medical report section. You can also enable/disable the official AEMPS integration and open the leaflet when available.";
 "help_note_mac" = "There is a MAC version of the app you can use if you prefer managing it with keyboard and mouse. You can later import your data to that version (or vice versa) using the Backup features available in Settings.";
 
 "autocomplete_loading" = "Searching medications...";

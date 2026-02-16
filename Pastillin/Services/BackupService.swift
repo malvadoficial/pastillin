@@ -73,6 +73,7 @@ enum BackupService {
             )
             app.id = s.id
             app.medicationAutocompleteEnabledRaw = s.medicationAutocompleteEnabledRaw
+            app.reminderTimesInMinutes = s.reminderTimesRaw ?? [s.reminderHour * 60 + s.reminderMinute]
             modelContext.insert(app)
         } else {
             modelContext.insert(AppSettings())
@@ -143,6 +144,7 @@ enum BackupService {
                     reminderHour: $0.reminderHour,
                     reminderMinute: $0.reminderMinute,
                     notificationsEnabled: $0.notificationsEnabled,
+                    reminderTimesRaw: $0.reminderTimesRaw,
                     medicationAutocompleteEnabledRaw: $0.medicationAutocompleteEnabledRaw
                 )
             }
@@ -194,5 +196,6 @@ private struct BackupSettings: Codable {
     let reminderHour: Int
     let reminderMinute: Int
     let notificationsEnabled: Bool
+    let reminderTimesRaw: [Int]?
     let medicationAutocompleteEnabledRaw: Bool?
 }

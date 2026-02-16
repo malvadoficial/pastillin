@@ -191,6 +191,7 @@ final class AppSettings {
     @Attribute(.unique) var id: String // siempre "app"
     var reminderHour: Int
     var reminderMinute: Int
+    var reminderTimesRaw: [Int]?
     var notificationsEnabled: Bool
     var medicationAutocompleteEnabledRaw: Bool?
     var uiAppearanceModeRaw: Int?
@@ -199,9 +200,33 @@ final class AppSettings {
         self.id = "app"
         self.reminderHour = reminderHour
         self.reminderMinute = reminderMinute
+        self.reminderTimesRaw = nil
         self.notificationsEnabled = notificationsEnabled
         self.medicationAutocompleteEnabledRaw = medicationAutocompleteEnabled
         self.uiAppearanceModeRaw = uiAppearanceMode.rawValue
+    }
+
+    var reminderTimesInMinutes: [Int] {
+        get {
+            if let raw = reminderTimesRaw {
+                return Self.normalizeReminderTimes(raw)
+            }
+            let legacy = reminderHour * 60 + reminderMinute
+            return Self.normalizeReminderTimes([legacy])
+        }
+        set {
+            let normalized = Self.normalizeReminderTimes(newValue)
+            reminderTimesRaw = normalized
+            let first = normalized.first ?? (10 * 60)
+            reminderHour = first / 60
+            reminderMinute = first % 60
+        }
+    }
+
+    private static func normalizeReminderTimes(_ values: [Int]) -> [Int] {
+        let sanitized = values.map { min(max($0, 0), 23 * 60 + 59) }
+        let unique = Array(Set(sanitized)).sorted()
+        return Array(unique.prefix(3))
     }
 
     var medicationAutocompleteEnabled: Bool {

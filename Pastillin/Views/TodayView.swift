@@ -73,15 +73,13 @@ struct TodayView: View {
 
                             // Nombre + hora
                             VStack(alignment: .leading, spacing: 4) {
-                                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                                    Text(row.medication.name)
-                                        .font(.headline)
+                                Text(row.medication.name)
+                                    .font(.subheadline.weight(.semibold))
 
-                                    if row.medication.kind == .occasional {
-                                        Text(L10n.tr("medication_occasional_badge_short"))
-                                            .font(.caption2.weight(.semibold))
-                                            .foregroundStyle(AppTheme.brandBlue)
-                                    }
+                                if row.medication.kind == .occasional {
+                                    Text(L10n.tr("medication_occasional_badge_short"))
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(AppTheme.brandBlue)
                                 }
 
                                 if row.log.isTaken {

@@ -7,7 +7,7 @@ struct SettingsView: View {
     @Query private var settings: [AppSettings]
     @AppStorage("legalDisclaimerAccepted") private var legalDisclaimerAccepted = false
 
-    @State private var reminderTime: Date = Date()
+    @State private var reminderTimes: [Date] = []
     @State private var enabled: Bool = false
     @State private var autocompleteEnabled: Bool = true
     @State private var appearanceMode: UIAppearanceMode = .system
@@ -36,11 +36,34 @@ struct SettingsView: View {
                             Task { await applyNotificationSetting(newValue) }
                         }
 
-                    DatePicker(L10n.tr("settings_label_time"), selection: $reminderTime, displayedComponents: [.hourAndMinute])
-                        .disabled(!enabled)
-                        .onChange(of: reminderTime) { _, _ in
-                            Task { await rescheduleIfNeeded() }
+                    ForEach(Array(reminderTimes.indices), id: \.self) { index in
+                        HStack {
+                            DatePicker(
+                                String(format: L10n.tr("settings_label_time_format"), index + 1),
+                                selection: reminderBinding(index),
+                                displayedComponents: [.hourAndMinute]
+                            )
+                            .disabled(!enabled)
+
+                            if reminderTimes.count > 1 {
+                                Button(role: .destructive) {
+                                    removeReminder(at: index)
+                                } label: {
+                                    Image(systemName: "minus.circle")
+                                }
+                                .disabled(!enabled)
+                            }
                         }
+                    }
+
+                    if reminderTimes.count < 3 {
+                        Button {
+                            addReminder()
+                        } label: {
+                            Label(L10n.tr("settings_add_reminder"), systemImage: "plus.circle")
+                        }
+                        .disabled(!enabled)
+                    }
                 }
 
                 Section(L10n.tr("settings_section_appearance")) {
@@ -51,8 +74,7 @@ struct SettingsView: View {
                     }
                     .onChange(of: appearanceMode) { _, newValue in
                         persistSettings(
-                            hour: hourMinute().0,
-                            minute: hourMinute().1,
+                            reminderMinutesOfDay: reminderMinutesOfDay(),
                             enabled: enabled,
                             autocompleteEnabled: autocompleteEnabled,
                             appearanceMode: newValue
@@ -64,8 +86,7 @@ struct SettingsView: View {
                     Toggle(L10n.tr("settings_toggle_autocomplete"), isOn: $autocompleteEnabled)
                         .onChange(of: autocompleteEnabled) { _, newValue in
                             persistSettings(
-                                hour: hourMinute().0,
-                                minute: hourMinute().1,
+                                reminderMinutesOfDay: reminderMinutesOfDay(),
                                 enabled: enabled,
                                 autocompleteEnabled: newValue,
                                 appearanceMode: appearanceMode
@@ -229,17 +250,16 @@ struct SettingsView: View {
         autocompleteEnabled = s.medicationAutocompleteEnabled
         appearanceMode = s.uiAppearanceMode
 
-        var comps = DateComponents()
-        comps.hour = s.reminderHour
-        comps.minute = s.reminderMinute
-        reminderTime = Calendar.current.date(from: comps) ?? Date()
+        reminderTimes = s.reminderTimesInMinutes.map { dateFrom(minutesOfDay: $0) }
+        if reminderTimes.isEmpty {
+            reminderTimes = [dateFrom(minutesOfDay: 10 * 60)]
+        }
     }
 
-    private func persistSettings(hour: Int, minute: Int, enabled: Bool, autocompleteEnabled: Bool, appearanceMode: UIAppearanceMode) {
+    private func persistSettings(reminderMinutesOfDay: [Int], enabled: Bool, autocompleteEnabled: Bool, appearanceMode: UIAppearanceMode) {
         let s = settings.first(where: { $0.id == "app" }) ?? AppSettings()
         if s.id != "app" { s.id = "app" }
-        s.reminderHour = hour
-        s.reminderMinute = minute
+        s.reminderTimesInMinutes = reminderMinutesOfDay
         s.notificationsEnabled = enabled
         s.medicationAutocompleteEnabled = autocompleteEnabled
         s.uiAppearanceMode = appearanceMode
@@ -249,41 +269,88 @@ struct SettingsView: View {
         try? modelContext.save()
     }
 
-    private func hourMinute() -> (Int, Int) {
-        let c = Calendar.current.dateComponents([.hour, .minute], from: reminderTime)
-        return (c.hour ?? 10, c.minute ?? 0)
+    private func reminderMinutesOfDay() -> [Int] {
+        let raw = reminderTimes.map { minutesOfDay(from: $0) }
+        let unique = Array(Set(raw)).sorted()
+        return Array(unique.prefix(3))
+    }
+
+    private func minutesOfDay(from date: Date) -> Int {
+        let c = Calendar.current.dateComponents([.hour, .minute], from: date)
+        let h = min(max(c.hour ?? 10, 0), 23)
+        let m = min(max(c.minute ?? 0, 0), 59)
+        return h * 60 + m
+    }
+
+    private func dateFrom(minutesOfDay: Int) -> Date {
+        let safe = min(max(minutesOfDay, 0), 23 * 60 + 59)
+        var comps = DateComponents()
+        comps.hour = safe / 60
+        comps.minute = safe % 60
+        return Calendar.current.date(from: comps) ?? Date()
+    }
+
+    private func reminderBinding(_ index: Int) -> Binding<Date> {
+        Binding(
+            get: {
+                guard reminderTimes.indices.contains(index) else { return Date() }
+                return reminderTimes[index]
+            },
+            set: { newValue in
+                guard reminderTimes.indices.contains(index) else { return }
+                reminderTimes[index] = newValue
+                Task { await rescheduleIfNeeded() }
+            }
+        )
+    }
+
+    private func addReminder() {
+        guard reminderTimes.count < 3 else { return }
+        let base = reminderTimes.last ?? Date()
+        let next = Calendar.current.date(byAdding: .hour, value: 4, to: base) ?? Date()
+        reminderTimes.append(next)
+        Task { await rescheduleIfNeeded() }
+    }
+
+    private func removeReminder(at index: Int) {
+        guard reminderTimes.indices.contains(index) else { return }
+        guard reminderTimes.count > 1 else { return }
+        reminderTimes.remove(at: index)
+        Task { await rescheduleIfNeeded() }
     }
 
     private func applyNotificationSetting(_ turnOn: Bool) async {
-        let (h, m) = hourMinute()
+        let minutes = reminderMinutesOfDay()
         if turnOn {
             do {
                 let ok = try await NotificationService.requestAuthorization()
                 if !ok {
                     enabled = false
-                    persistSettings(hour: h, minute: m, enabled: false, autocompleteEnabled: autocompleteEnabled, appearanceMode: appearanceMode)
+                    persistSettings(reminderMinutesOfDay: minutes, enabled: false, autocompleteEnabled: autocompleteEnabled, appearanceMode: appearanceMode)
                     return
                 }
-                try await NotificationService.scheduleDailyReminder(hour: h, minute: m)
-                persistSettings(hour: h, minute: m, enabled: true, autocompleteEnabled: autocompleteEnabled, appearanceMode: appearanceMode)
+                let times = minutes.map { ($0 / 60, $0 % 60) }
+                try await NotificationService.scheduleDailyReminders(times: times)
+                persistSettings(reminderMinutesOfDay: minutes, enabled: true, autocompleteEnabled: autocompleteEnabled, appearanceMode: appearanceMode)
             } catch {
                 errorText = L10n.tr("error_enable_reminder")
                 enabled = false
-                persistSettings(hour: h, minute: m, enabled: false, autocompleteEnabled: autocompleteEnabled, appearanceMode: appearanceMode)
+                persistSettings(reminderMinutesOfDay: minutes, enabled: false, autocompleteEnabled: autocompleteEnabled, appearanceMode: appearanceMode)
             }
         } else {
             NotificationService.cancelDailyReminder()
-            persistSettings(hour: h, minute: m, enabled: false, autocompleteEnabled: autocompleteEnabled, appearanceMode: appearanceMode)
+            persistSettings(reminderMinutesOfDay: minutes, enabled: false, autocompleteEnabled: autocompleteEnabled, appearanceMode: appearanceMode)
         }
     }
 
     private func rescheduleIfNeeded() async {
-        let (h, m) = hourMinute()
-        persistSettings(hour: h, minute: m, enabled: enabled, autocompleteEnabled: autocompleteEnabled, appearanceMode: appearanceMode)
+        let minutes = reminderMinutesOfDay()
+        persistSettings(reminderMinutesOfDay: minutes, enabled: enabled, autocompleteEnabled: autocompleteEnabled, appearanceMode: appearanceMode)
 
         guard enabled else { return }
         do {
-            try await NotificationService.scheduleDailyReminder(hour: h, minute: m)
+            let times = minutes.map { ($0 / 60, $0 % 60) }
+            try await NotificationService.scheduleDailyReminders(times: times)
         } catch {
             errorText = L10n.tr("error_reschedule_reminder")
         }

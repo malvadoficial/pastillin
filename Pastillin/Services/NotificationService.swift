@@ -12,6 +12,8 @@ enum NotificationService {
     static let dailyCategory = "DAILY_REMINDER"
     static let openAction = "OPEN_TODAY"
     static let snoozeOneHourAction = "SNOOZE_ONE_HOUR"
+    private static let dailyReminderLegacyID = "daily_reminder"
+    private static let dailyReminderPrefix = "daily_reminder_"
     private static let occasionalPrefix = "OCCASIONAL_REMINDER_"
 
     static func registerCategories() {
@@ -39,31 +41,42 @@ enum NotificationService {
     }
 
     static func scheduleDailyReminder(hour: Int, minute: Int) async throws {
+        try await scheduleDailyReminders(times: [(hour, minute)])
+    }
+
+    static func scheduleDailyReminders(times: [(Int, Int)]) async throws {
         let center = UNUserNotificationCenter.current()
-        center.removePendingNotificationRequests(withIdentifiers: ["daily_reminder"])
+        cancelDailyReminder()
 
-        var comps = DateComponents()
-        comps.hour = hour
-        comps.minute = minute
+        let normalized = times.map { (min(max($0.0, 0), 23), min(max($0.1, 0), 59)) }
+        let uniqueKeys = Array(Set(normalized.map { $0.0 * 60 + $0.1 })).sorted()
+        let parsed = Array(uniqueKeys.prefix(3)).map { ($0 / 60, $0 % 60) }
 
-        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)
+        for (index, item) in parsed.enumerated() {
+            var comps = DateComponents()
+            comps.hour = item.0
+            comps.minute = item.1
 
-        let content = UNMutableNotificationContent()
-        content.title = L10n.tr("notification_title")
-        content.body = L10n.tr("notification_body")
-        content.sound = .default
-        content.categoryIdentifier = dailyCategory
+            let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)
 
-        let request = UNNotificationRequest(
-            identifier: "daily_reminder",
-            content: content,
-            trigger: trigger
-        )
-        try await center.add(request)
+            let content = UNMutableNotificationContent()
+            content.title = L10n.tr("notification_title")
+            content.body = L10n.tr("notification_body")
+            content.sound = .default
+            content.categoryIdentifier = dailyCategory
+
+            let request = UNNotificationRequest(
+                identifier: "\(dailyReminderPrefix)\(index)",
+                content: content,
+                trigger: trigger
+            )
+            try await center.add(request)
+        }
     }
 
     static func cancelDailyReminder() {
-        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["daily_reminder"])
+        let ids = [dailyReminderLegacyID] + (0..<3).map { "\(dailyReminderPrefix)\($0)" }
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ids)
     }
 
     static func scheduleSnoozeOneHourReminder() async throws {

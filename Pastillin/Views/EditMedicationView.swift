@@ -62,6 +62,10 @@ struct EditMedicationView: View {
         let cal = Calendar.current
         return cal.startOfDay(for: startDate) < cal.startOfDay(for: Date())
     }
+    private var isTodayOccasionalDate: Bool {
+        let cal = Calendar.current
+        return cal.startOfDay(for: startDate) == cal.startOfDay(for: Date())
+    }
     private var hasOfficialInfo: Bool {
         cimaNombreCompleto != nil || cimaPrincipioActivo != nil || cimaLaboratorio != nil || cimaProspectoURL != nil || cimaNRegistro != nil
     }
@@ -211,6 +215,13 @@ struct EditMedicationView: View {
                         )
 
                         if isPastOccasionalDate {
+                            DatePicker(
+                                L10n.tr("occasional_taken_time"),
+                                selection: $occasionalPastTakenTime,
+                                displayedComponents: [.hourAndMinute]
+                            )
+                        }
+                        if markTakenNowOnCreate && isTodayOccasionalDate {
                             DatePicker(
                                 L10n.tr("occasional_taken_time"),
                                 selection: $occasionalPastTakenTime,
@@ -679,13 +690,11 @@ struct EditMedicationView: View {
 
         let cal = Calendar.current
         let dayKey = cal.startOfDay(for: date)
-        let now = Date()
-
-        let hm = cal.dateComponents([.hour, .minute], from: now)
+        let hm = cal.dateComponents([.hour, .minute], from: occasionalPastTakenTime)
         var comps = cal.dateComponents([.year, .month, .day], from: dayKey)
         comps.hour = hm.hour
         comps.minute = hm.minute
-        let takenAt = cal.date(from: comps) ?? now
+        let takenAt = cal.date(from: comps) ?? Date()
 
         if let existing = allLogs.first(where: { $0.medicationID == med.id && cal.isDate($0.dateKey, inSameDayAs: dayKey) }) {
             existing.isTaken = true
