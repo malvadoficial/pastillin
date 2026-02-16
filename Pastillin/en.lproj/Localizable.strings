@@ -74,6 +74,17 @@
 
 "history_taken_time_format" = "Taken · %@";
 "history_not_taken" = "Not taken";
+"history_actions_title" = "Edit intake";
+"history_action_picker" = "Action";
+"history_action_change_time" = "Change time";
+"history_action_save_time" = "Save time";
+"history_action_delete" = "Delete intake";
+"history_action_apply" = "Apply";
+"history_edit_time_title" = "Edit time";
+"history_edit_time_picker" = "Taken time";
+"history_delete_title" = "Delete intake";
+"history_delete_message" = "This intake will be removed from history.";
+"history_delete_confirm" = "Delete";
 "time_unspecified" = "Time not specified";
 
 "day_empty" = "Nothing scheduled";

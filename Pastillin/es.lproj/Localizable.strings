@@ -74,6 +74,17 @@
 
 "history_taken_time_format" = "Tomada · %@";
 "history_not_taken" = "No tomada";
+"history_actions_title" = "Editar toma";
+"history_action_picker" = "Acción";
+"history_action_change_time" = "Cambiar hora";
+"history_action_save_time" = "Guardar hora";
+"history_action_delete" = "Borrar toma";
+"history_action_apply" = "Aplicar";
+"history_edit_time_title" = "Editar hora";
+"history_edit_time_picker" = "Hora de la toma";
+"history_delete_title" = "Borrar toma";
+"history_delete_message" = "Esta toma se eliminará del historial.";
+"history_delete_confirm" = "Borrar";
 "time_unspecified" = "Hora no especificada";
 
 "day_empty" = "No tocaba nada";

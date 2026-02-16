@@ -41,6 +41,9 @@ struct EditMedicationView: View {
     @State private var cimaProspectoURL: String? = nil
     @State private var isLoadingCIMADetail = false
     @State private var prospectoSheetURL: URLSheetItem? = nil
+    @State private var historyLogForActions: IntakeLog? = nil
+    @State private var historyEditedTime: Date = Date()
+    @State private var isHistoryEditing: Bool = false
 
     @StateObject private var nameAutocomplete = MedicationNameAutocompleteViewModel()
     @FocusState private var focusedField: Field?
@@ -341,10 +344,23 @@ struct EditMedicationView: View {
 
                 // MARK: Historial (solo si hay datos)
                 if let med = medication, !history(for: med).isEmpty {
-                    Section(String(format: L10n.tr("edit_section_history_format"), maxHistoryItems)) {
+                    Section {
                         ForEach(history(for: med)) { log in
                             historyRow(log)
                         }
+                    } header: {
+                        HStack {
+                            Text(String(format: L10n.tr("edit_section_history_format"), maxHistoryItems))
+                            Spacer()
+                            Button(isHistoryEditing ? L10n.tr("button_done") : L10n.tr("button_edit")) {
+                                isHistoryEditing.toggle()
+                                if !isHistoryEditing {
+                                    historyLogForActions = nil
+                                }
+                            }
+                            .buttonStyle(.borderless)
+                        }
+                        .textCase(nil)
                     }
                 }
 
@@ -417,6 +433,18 @@ struct EditMedicationView: View {
                     .zIndex(1)
                 }
             }
+            .overlay {
+                if let log = historyLogForActions {
+                    HistoryEditOverlay(
+                        selectedTime: $historyEditedTime,
+                        onSaveTime: { saveHistoryTime(for: log) },
+                        onDeleteIntake: { deleteHistoryLog(for: log) },
+                        onClose: { historyLogForActions = nil }
+                    )
+                    .zIndex(2)
+                    .transition(.opacity)
+                }
+            }
             .sheet(isPresented: $showCamera) {
                 ImagePicker(sourceType: .camera, imageData: $photoData)
             }
@@ -440,10 +468,11 @@ struct EditMedicationView: View {
                                     prospectoSheetURL = nil
                                 }
                             }
-                        }
+                    }
                 }
             }
             .animation(.easeInOut(duration: 0.2), value: showPickerSheet)
+            .animation(.easeInOut(duration: 0.2), value: historyLogForActions?.id)
             .onDisappear {
                 nameAutocomplete.cancel()
             }
@@ -475,27 +504,52 @@ struct EditMedicationView: View {
     @ViewBuilder
     private func historyRow(_ log: IntakeLog) -> some View {
         HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(Fmt.dateShort(log.dateKey))
-                    .font(.subheadline.weight(.semibold))
-
-                if log.isTaken {
-                    let timeText = log.takenAt.map { Fmt.timeShort($0) } ?? L10n.tr("time_unspecified")
-                    Text(String(format: L10n.tr("history_taken_time_format"), timeText))
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text(L10n.tr("history_not_taken"))
-                        .foregroundStyle(.secondary)
+            if isHistoryEditing {
+                Button {
+                    beginHistoryActions(for: log)
+                } label: {
+                    historyRowMainContent(log)
                 }
+                .buttonStyle(.plain)
+            } else {
+                historyRowMainContent(log)
             }
 
             Spacer()
 
-            Circle()
-                .frame(width: 10, height: 10)
-                .foregroundStyle(log.isTaken ? .green : .red)
+            if isHistoryEditing {
+                Button {
+                    toggleHistoryStatus(for: log)
+                } label: {
+                    Circle()
+                        .frame(width: 12, height: 12)
+                        .foregroundStyle(log.isTaken ? AppTheme.brandBlue : AppTheme.brandRed)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Circle()
+                    .frame(width: 10, height: 10)
+                    .foregroundStyle(log.isTaken ? AppTheme.brandBlue : AppTheme.brandRed)
+            }
         }
         .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private func historyRowMainContent(_ log: IntakeLog) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(Fmt.dateShort(log.dateKey))
+                .font(.subheadline.weight(.semibold))
+
+            if log.isTaken {
+                let timeText = log.takenAt.map { Fmt.timeShort($0) } ?? L10n.tr("time_unspecified")
+                Text(String(format: L10n.tr("history_taken_time_format"), timeText))
+                    .foregroundStyle(.secondary)
+            } else {
+                Text(L10n.tr("history_not_taken"))
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 
     // MARK: - Load / Save
@@ -717,6 +771,59 @@ struct EditMedicationView: View {
         dismiss()
     }
 
+    private func beginHistoryActions(for log: IntakeLog) {
+        let cal = Calendar.current
+        let baseDay = cal.startOfDay(for: log.dateKey)
+        if let takenAt = log.takenAt {
+            historyEditedTime = takenAt
+        } else {
+            historyEditedTime = cal.date(
+                bySettingHour: 9,
+                minute: 0,
+                second: 0,
+                of: baseDay
+            ) ?? baseDay
+        }
+        historyLogForActions = log
+    }
+
+    private func saveHistoryTime(for log: IntakeLog) {
+        let cal = Calendar.current
+        let dayKey = cal.startOfDay(for: log.dateKey)
+        let hm = cal.dateComponents([.hour, .minute], from: historyEditedTime)
+        var comps = cal.dateComponents([.year, .month, .day], from: dayKey)
+        comps.hour = hm.hour
+        comps.minute = hm.minute
+        let finalTakenAt = cal.date(from: comps) ?? dayKey
+
+        log.isTaken = true
+        log.takenAt = finalTakenAt
+        try? modelContext.save()
+        historyLogForActions = nil
+    }
+
+    private func toggleHistoryStatus(for log: IntakeLog) {
+        let cal = Calendar.current
+        if log.isTaken {
+            log.isTaken = false
+            log.takenAt = nil
+        } else {
+            let nowHM = cal.dateComponents([.hour, .minute], from: Date())
+            var comps = cal.dateComponents([.year, .month, .day], from: cal.startOfDay(for: log.dateKey))
+            comps.hour = nowHM.hour
+            comps.minute = nowHM.minute
+            log.isTaken = true
+            log.takenAt = cal.date(from: comps) ?? log.dateKey
+        }
+        try? modelContext.save()
+    }
+
+    private func deleteHistoryLog(for log: IntakeLog) {
+        modelContext.delete(log)
+        try? modelContext.save()
+        historyLogForActions = nil
+    }
+
     private func syncOccasionalReminder(for med: Medication) {
         guard med.kind == .occasional else {
             NotificationService.cancelOccasionalReminder(medicationID: med.id)
@@ -927,6 +1034,58 @@ private struct PhotoSourceOverlay: View {
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .padding(.horizontal, 12)
             .padding(.bottom, 8)
+        }
+    }
+}
+
+private struct HistoryEditOverlay: View {
+    @Binding var selectedTime: Date
+    let onSaveTime: () -> Void
+    let onDeleteIntake: () -> Void
+    let onClose: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.62)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    onClose()
+                }
+
+            VStack(alignment: .leading, spacing: 14) {
+                Text(L10n.tr("history_actions_title"))
+                    .font(.headline)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                DatePicker(
+                    L10n.tr("history_edit_time_picker"),
+                    selection: $selectedTime,
+                    displayedComponents: [.hourAndMinute]
+                )
+                .datePickerStyle(.wheel)
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
+
+                Button(action: onSaveTime) {
+                    Label(L10n.tr("history_action_save_time"), systemImage: "clock")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(AppTheme.brandBlue)
+
+                Button(role: .destructive, action: onDeleteIntake) {
+                    Label(L10n.tr("history_action_delete"), systemImage: "trash")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button(L10n.tr("button_cancel"), action: onClose)
+                    .frame(maxWidth: .infinity)
+            }
+            .padding(16)
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .padding(.horizontal, 16)
         }
     }
 }
