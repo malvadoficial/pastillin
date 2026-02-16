@@ -7,13 +7,13 @@
 ## 🇪🇸 Política de Privacidad
 
 ### 1. Introducción
-Esta Política de Privacidad describe cómo **PASTILLÍN** respeta y protege la privacidad de los usuarios.  
+Esta Política de Privacidad describe cómo **Pastillin** respeta y protege la privacidad de los usuarios.  
 La aplicación ha sido diseñada para funcionar **sin recopilar, almacenar ni compartir datos personales**.
 
 ---
 
 ### 2. Datos que NO se recopilan
-**PASTILLÍN NO recopila, procesa ni transmite:**
+**Pastillin NO recopila, procesa ni transmite:**
 - Datos personales identificables
 - Información médica o clínica
 - Datos de salud vinculados a una persona
@@ -23,6 +23,9 @@ La aplicación ha sido diseñada para funcionar **sin recopilar, almacenar ni co
 - Información de contacto
 - Datos de uso o analítica
 - Datos para publicidad o seguimiento
+
+Dado que no se recopilan datos, **no se venden ni se comparten datos con terceros**.  
+Esta información es coherente con las **etiquetas de privacidad mostradas en la App Store**.
 
 ---
 
@@ -34,29 +37,38 @@ Cualquier información introducida por el usuario (por ejemplo, nombres de medic
 - **No es accesible por el desarrollador**.
 - **No se comparte con terceros**.
 
+La aplicación **no requiere registro ni cuenta de usuario**.
+
 ---
 
 ### 4. Uso de APIs externas
 La aplicación puede utilizar **fuentes públicas de información** únicamente para ayudar al usuario a introducir nombres de medicamentos (por ejemplo, funciones de autocompletado).
 
 - No se envía información personal del usuario.
-- No se asocian las consultas a ningún identificador personal.
-- Las consultas no permiten identificar al usuario.
+- Las consultas no se asocian a ningún identificador personal.
+- No es posible identificar al usuario a través de dichas consultas.
+
+La aplicación **no utiliza HealthKit ni accede a datos de salud del sistema**.
 
 ---
 
-### 5. Copias de seguridad
+### 5. Notificaciones
+Las notificaciones de recordatorio se generan **localmente** mediante las APIs del sistema operativo y **no implican transmisión de datos** a servidores externos.
+
+---
+
+### 6. Copias de seguridad
 Los datos almacenados localmente pueden formar parte de las copias de seguridad del dispositivo realizadas por el sistema operativo (por ejemplo, iCloud), según la configuración del propio usuario.  
 El desarrollador **no tiene acceso** a dichas copias.
 
 ---
 
-### 6. Compartición de datos
-**PASTILLÍN no comparte datos con terceros**, ya que no recopila ningún dato.
+### 7. Compartición de datos
+**Pastillin no comparte datos con terceros**, ya que no recopila ningún dato.
 
 ---
 
-### 7. Publicidad y analítica
+### 8. Publicidad y analítica
 La aplicación:
 - No incluye publicidad.
 - No utiliza servicios de analítica.
@@ -64,23 +76,23 @@ La aplicación:
 
 ---
 
-### 8. Menores de edad
+### 9. Menores de edad
 La aplicación no está dirigida específicamente a menores de edad y no recopila datos personales de usuarios de ninguna edad.
 
 ---
 
-### 9. Finalidad de la aplicación
-**PASTILLÍN** es una herramienta de organización personal.  
+### 10. Finalidad de la aplicación
+**Pastillin** es una herramienta de organización personal para la gestión de recordatorios.  
 No proporciona asesoramiento médico, no sustituye la consulta con profesionales sanitarios y no realiza diagnósticos ni recomendaciones clínicas.
 
 ---
 
-### 10. Cambios en esta política
+### 11. Cambios en esta política
 Si esta Política de Privacidad se actualiza, la nueva versión estará disponible públicamente en esta misma ubicación.
 
 ---
 
-### 11. Contacto
+### 12. Contacto
 Para cualquier cuestión relacionada con esta Política de Privacidad:
 
 **Correo electrónico:** malvadoficial@gmail.com
@@ -92,13 +104,13 @@ Para cualquier cuestión relacionada con esta Política de Privacidad:
 ## 🇬🇧 Privacy Policy
 
 ### 1. Introduction
-This Privacy Policy explains how **PASTILLÍN** respects and protects user privacy.  
+This Privacy Policy explains how **Pastillin** respects and protects user privacy.  
 The application is designed to operate **without collecting, storing, or sharing personal data**.
 
 ---
 
 ### 2. Data Not Collected
-**PASTILLÍN does NOT collect, process, or transmit:**
+**Pastillin does NOT collect, process, or transmit:**
 - Personally identifiable information
 - Medical or clinical information
 - Personal health data
@@ -108,6 +120,9 @@ The application is designed to operate **without collecting, storing, or sharing
 - Contact information
 - Usage or analytics data
 - Advertising or tracking data
+
+Since no data is collected, **no data is sold or shared with third parties**.  
+This information is consistent with the **App Store privacy labels**.
 
 ---
 
@@ -119,29 +134,38 @@ Any information entered by the user (such as medication names, schedules, or rem
 - Is **not accessible to the developer**.
 - Is **not shared with third parties**.
 
+The application **does not require user registration or accounts**.
+
 ---
 
 ### 4. Use of External APIs
 The application may use **public information sources** solely to assist users in entering medication names (for example, autocomplete features).
 
 - No personal data is transmitted.
-- Queries are not associated with any personal identifiers.
+- Queries are not associated with personal identifiers.
 - Users cannot be identified through these requests.
+
+The application **does not use HealthKit or access system health data**.
 
 ---
 
-### 5. Backups
+### 5. Notifications
+Reminder notifications are generated **locally** using system APIs and **do not involve data transmission** to external servers.
+
+---
+
+### 6. Backups
 Locally stored data may be included in device backups performed by the operating system (such as iCloud), depending on the user’s settings.  
 The developer **does not have access** to these backups.
 
 ---
 
-### 6. Data Sharing
-**PASTILLÍN does not share data with third parties**, as no data is collected.
+### 7. Data Sharing
+**Pastillin does not share data with third parties**, as no data is collected.
 
 ---
 
-### 7. Advertising and Analytics
+### 8. Advertising and Analytics
 The application:
 - Does not include advertising.
 - Does not use analytics services.
@@ -149,23 +173,23 @@ The application:
 
 ---
 
-### 8. Children
+### 9. Children
 The application is not specifically intended for children and does not collect personal data from users of any age.
 
 ---
 
-### 9. Purpose of the Application
-**PASTILLÍN** is a personal organization tool.  
+### 10. Purpose of the Application
+**Pastillin** is a personal organization tool for managing reminders.  
 It does not provide medical advice, does not replace professional healthcare consultation, and does not perform diagnoses or clinical recommendations.
 
 ---
 
-### 10. Changes to This Policy
+### 11. Changes to This Policy
 Any updates to this Privacy Policy will be published at this same location.
 
 ---
 
-### 11. Contact
+### 12. Contact
 For questions regarding this Privacy Policy:
 
 **Email:** malvadoficial@gmail.com
