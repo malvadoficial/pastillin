@@ -7,13 +7,13 @@
 ## 🇪🇸 Política de Privacidad
 
 ### 1. Introducción
-Esta Política de Privacidad describe cómo **[NOMBRE DE LA APP]** respeta y protege la privacidad de los usuarios.  
+Esta Política de Privacidad describe cómo **PASTILLÍN** respeta y protege la privacidad de los usuarios.  
 La aplicación ha sido diseñada para funcionar **sin recopilar, almacenar ni compartir datos personales**.
 
 ---
 
 ### 2. Datos que NO se recopilan
-**[NOMBRE DE LA APP] NO recopila, procesa ni transmite:**
+**PASTILLÍN NO recopila, procesa ni transmite:**
 - Datos personales identificables
 - Información médica o clínica
 - Datos de salud vinculados a una persona
@@ -52,7 +52,7 @@ El desarrollador **no tiene acceso** a dichas copias.
 ---
 
 ### 6. Compartición de datos
-**[NOMBRE DE LA APP] no comparte datos con terceros**, ya que no recopila ningún dato.
+**PASTILLÍN no comparte datos con terceros**, ya que no recopila ningún dato.
 
 ---
 
@@ -70,7 +70,7 @@ La aplicación no está dirigida específicamente a menores de edad y no recopil
 ---
 
 ### 9. Finalidad de la aplicación
-**[NOMBRE DE LA APP]** es una herramienta de organización personal.  
+**PASTILLÍN** es una herramienta de organización personal.  
 No proporciona asesoramiento médico, no sustituye la consulta con profesionales sanitarios y no realiza diagnósticos ni recomendaciones clínicas.
 
 ---
@@ -83,7 +83,7 @@ Si esta Política de Privacidad se actualiza, la nueva versión estará disponib
 ### 11. Contacto
 Para cualquier cuestión relacionada con esta Política de Privacidad:
 
-**Correo electrónico:** [TU EMAIL DE CONTACTO]
+**Correo electrónico:** malvadoficial@gmail.com
 
 ---
 
@@ -92,13 +92,13 @@ Para cualquier cuestión relacionada con esta Política de Privacidad:
 ## 🇬🇧 Privacy Policy
 
 ### 1. Introduction
-This Privacy Policy explains how **[APP NAME]** respects and protects user privacy.  
+This Privacy Policy explains how **PASTILLÍN** respects and protects user privacy.  
 The application is designed to operate **without collecting, storing, or sharing personal data**.
 
 ---
 
 ### 2. Data Not Collected
-**[APP NAME] does NOT collect, process, or transmit:**
+**PASTILLÍN does NOT collect, process, or transmit:**
 - Personally identifiable information
 - Medical or clinical information
 - Personal health data
@@ -137,7 +137,7 @@ The developer **does not have access** to these backups.
 ---
 
 ### 6. Data Sharing
-**[APP NAME] does not share data with third parties**, as no data is collected.
+**PASTILLÍN does not share data with third parties**, as no data is collected.
 
 ---
 
@@ -155,7 +155,7 @@ The application is not specifically intended for children and does not collect p
 ---
 
 ### 9. Purpose of the Application
-**[APP NAME]** is a personal organization tool.  
+**PASTILLÍN** is a personal organization tool.  
 It does not provide medical advice, does not replace professional healthcare consultation, and does not perform diagnoses or clinical recommendations.
 
 ---
@@ -168,4 +168,4 @@ Any updates to this Privacy Policy will be published at this same location.
 ### 11. Contact
 For questions regarding this Privacy Policy:
 
-**Email:** [YOUR CONTACT EMAIL]
+**Email:** malvadoficial@gmail.com
