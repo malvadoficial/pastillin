@@ -366,21 +366,34 @@ private struct TodayGettingStartedOverlay: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let safeTop = proxy.safeAreaInsets.top
-            let plusTarget = normalizedPlusFrame(in: proxy.size, safeTop: safeTop)
-            let helpTarget = normalizedHelpFrame(in: proxy.size)
+            let safeWidth = max(finite(proxy.size.width, fallback: 320), 1)
+            let safeHeight = max(finite(proxy.size.height, fallback: 640), 1)
+            let safeSize = CGSize(width: safeWidth, height: safeHeight)
+            let safeTop = finite(proxy.safeAreaInsets.top, fallback: 0)
+            let plusTarget = sanitizedFrame(normalizedPlusFrame(in: safeSize, safeTop: safeTop), in: safeSize)
+            let helpTarget = sanitizedFrame(normalizedHelpFrame(in: safeSize), in: safeSize)
+            let plusHoleWidth = max(plusTarget.width + 12, 1)
+            let plusHoleHeight = max(plusTarget.height + 10, 1)
+            let helpHoleWidth = max(helpTarget.width + 34, 1)
+            let helpHoleHeight = max(helpTarget.height + 18, 1)
+            let plusHintWidth = max(min(220, max(safeWidth - 24, 1)), 1)
+            let helpHintWidth = max(min(300, max(safeWidth - 24, 1)), 1)
+            let plusHintX = clamp(plusTarget.midX + 70, lower: 110, upper: max(safeWidth - 110, 110))
+            let plusHintY = min(safeHeight - 40, plusTarget.maxY + 46)
+            let helpHintX = clamp(helpTarget.midX, lower: 1, upper: max(safeWidth - 1, 1))
+            let helpHintY = max(26, helpTarget.minY - 34)
 
             ZStack {
                 Color.black.opacity(0.70)
                     .overlay(
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .frame(width: plusTarget.width + 12, height: plusTarget.height + 10)
+                            .frame(width: plusHoleWidth, height: plusHoleHeight)
                             .position(x: plusTarget.midX, y: plusTarget.midY)
                             .blendMode(.destinationOut)
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .frame(width: helpTarget.width + 34, height: helpTarget.height + 18)
+                            .frame(width: helpHoleWidth, height: helpHoleHeight)
                             .position(x: helpTarget.midX, y: helpTarget.midY)
                             .blendMode(.destinationOut)
                     )
@@ -397,7 +410,10 @@ private struct TodayGettingStartedOverlay: View {
 
                 Button(action: onTapHelp) {
                     Color.clear
-                        .frame(width: max(helpTarget.width + 8, 140), height: max(helpTarget.height + 8, 40))
+                        .frame(
+                            width: max(max(helpTarget.width + 8, 140), 1),
+                            height: max(max(helpTarget.height + 8, 40), 1)
+                        )
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -407,21 +423,15 @@ private struct TodayGettingStartedOverlay: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
-                    .frame(width: min(220, proxy.size.width - 24))
-                    .position(
-                        x: max(110, min(proxy.size.width - 110, plusTarget.midX + 70)),
-                        y: min(proxy.size.height - 40, plusTarget.maxY + 46)
-                    )
+                    .frame(width: plusHintWidth)
+                    .position(x: plusHintX, y: plusHintY)
 
                 Text(L10n.tr("today_overlay_help_hint"))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
-                    .frame(width: min(300, proxy.size.width - 24))
-                    .position(
-                        x: helpTarget.midX,
-                        y: max(26, helpTarget.minY - 34)
-                    )
+                    .frame(width: helpHintWidth)
+                    .position(x: helpHintX, y: helpHintY)
             }
         }
         .ignoresSafeArea()
@@ -439,6 +449,24 @@ private struct TodayGettingStartedOverlay: View {
             return CGRect(x: (size.width - 180) / 2, y: size.height * 0.62, width: 180, height: 42)
         }
         return helpFrame
+    }
+
+    private func sanitizedFrame(_ frame: CGRect, in size: CGSize) -> CGRect {
+        let safeWidth = max(finite(frame.width, fallback: 32), 1)
+        let safeHeight = max(finite(frame.height, fallback: 32), 1)
+        let maxX = max(size.width - safeWidth, 0)
+        let maxY = max(size.height - safeHeight, 0)
+        let safeX = clamp(finite(frame.origin.x, fallback: 0), lower: 0, upper: maxX)
+        let safeY = clamp(finite(frame.origin.y, fallback: 0), lower: 0, upper: maxY)
+        return CGRect(x: safeX, y: safeY, width: safeWidth, height: safeHeight)
+    }
+
+    private func finite(_ value: CGFloat, fallback: CGFloat) -> CGFloat {
+        value.isFinite ? value : fallback
+    }
+
+    private func clamp(_ value: CGFloat, lower: CGFloat, upper: CGFloat) -> CGFloat {
+        min(max(value, lower), upper)
     }
 }
 

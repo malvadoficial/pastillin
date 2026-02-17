@@ -17,6 +17,7 @@ enum AppTab: String {
     case today
     case calendar
     case medications
+    case noTaken
     case settings
 }
 
@@ -42,6 +43,10 @@ struct RootView: View {
             MedicationsView()
                 .tabItem { Label(L10n.tr("tab_medications"), systemImage: "pills") }
                 .tag(AppTab.medications)
+
+            NoTakenView()
+                .tabItem { Label(L10n.tr("tab_not_taken"), systemImage: "xmark.circle") }
+                .tag(AppTab.noTaken)
 
             SettingsView()
                 .tabItem { Label(L10n.tr("tab_settings"), systemImage: "gearshape") }
@@ -80,6 +85,7 @@ struct RootView: View {
             bottomBarButton(.today, title: L10n.tr("tab_today"), systemImage: "checklist")
             bottomBarButton(.calendar, title: L10n.tr("tab_calendar"), systemImage: "calendar")
             bottomBarButton(.medications, title: L10n.tr("tab_medications"), systemImage: "pills")
+            bottomBarButton(.noTaken, title: L10n.tr("tab_not_taken"), systemImage: "xmark.circle")
             bottomBarButton(.settings, title: L10n.tr("tab_settings"), systemImage: "gearshape")
         }
         .padding(.horizontal, 10)
@@ -141,6 +147,8 @@ struct RootView: View {
             return AppTheme.brandRed
         case .medications:
             return AppTheme.brandYellow
+        case .noTaken:
+            return AppTheme.brandRed
         case .settings:
             return colorScheme == .dark ? .white : .black
         }
