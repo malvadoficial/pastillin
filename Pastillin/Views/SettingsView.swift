@@ -92,6 +92,14 @@ struct SettingsView: View {
                                 appearanceMode: appearanceMode
                             )
                         }
+
+                    if autocompleteEnabled {
+                        NavigationLink {
+                            AEMPSSearchView()
+                        } label: {
+                            Label(L10n.tr("settings_open_aemps_search"), systemImage: "magnifyingglass")
+                        }
+                    }
                 } header: {
                     HStack(spacing: 8) {
                         Text(L10n.tr("settings_section_autocomplete"))

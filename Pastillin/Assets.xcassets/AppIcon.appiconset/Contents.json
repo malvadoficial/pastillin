@@ -1,7 +1,7 @@
 {
   "images" : [
     {
-      "filename" : "icono.png",
+      "filename" : "ChatGPT Image 17 feb 2026, 17_31_36.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -13,7 +13,7 @@
           "value" : "dark"
         }
       ],
-      "filename" : "icono-dark.png",
+      "filename" : "IconDark.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"

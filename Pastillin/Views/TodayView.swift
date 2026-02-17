@@ -12,8 +12,10 @@ struct TodayView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var medications: [Medication]
     @Query private var logs: [IntakeLog]
+    @AppStorage("selectedTab") private var selectedTab: AppTab = .today
 
     @State private var rows: [TodayRow] = []
+    @State private var pendingCount: Int = 0
     @State private var selected: SelectedWrapper? = nil
     @State private var showingAddTypeDialog = false
     @State private var addMode: TodayAddMode? = nil
@@ -40,6 +42,19 @@ struct TodayView: View {
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(AppTheme.brandBlue)
                         .frame(maxWidth: .infinity, alignment: .center)
+
+                    if pendingCount > 0 {
+                        Button {
+                            selectedTab = .noTaken
+                        } label: {
+                            Text(String(format: L10n.tr("today_pending_notice_format"), pendingCount))
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(AppTheme.brandRed)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.vertical, 2)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
 
                 if rows.isEmpty {
@@ -192,6 +207,9 @@ struct TodayView: View {
                 try? LogService.ensureLogs(for: Date(), modelContext: modelContext)
                 reload()
             }
+            .onChange(of: logs.count) { _, _ in
+                reload()
+            }
             .sheet(item: $selected) { wrap in
                 MedicationLogDetailView(
                     medication: wrap.med,
@@ -298,6 +316,81 @@ struct TodayView: View {
                 return o0 < o1
             }
             return $0.medication.name.localizedCaseInsensitiveCompare($1.medication.name) == .orderedAscending
+        }
+
+        refreshPendingCount()
+    }
+
+    private func refreshPendingCount() {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let start = cal.date(byAdding: .day, value: -29, to: today) ?? today
+
+        try? LogService.ensureLogs(from: start, to: today, modelContext: modelContext)
+
+        let medsByID = Dictionary(uniqueKeysWithValues: medications.map { ($0.id, $0) })
+        let missedRows: [(medication: Medication, log: IntakeLog)] = logs.compactMap { log in
+            let dayKey = cal.startOfDay(for: log.dateKey)
+            guard dayKey < today else { return nil }
+            guard dayKey >= start else { return nil }
+            guard !log.isTaken else { return nil }
+            guard let med = medsByID[log.medicationID] else { return nil }
+            guard med.kind == .scheduled else { return nil }
+            guard isEligibleForPending(med) else { return nil }
+            return (med, log)
+        }
+
+        var latestPendingByMedication: [UUID: IntakeLog] = [:]
+        for row in missedRows {
+            let medID = row.medication.id
+            if let existing = latestPendingByMedication[medID] {
+                if row.log.dateKey > existing.dateKey {
+                    latestPendingByMedication[medID] = row.log
+                }
+            } else {
+                latestPendingByMedication[medID] = row.log
+            }
+        }
+
+        let validMedicationIDs = latestPendingByMedication.compactMap { medID, latestLog -> UUID? in
+            let latestDay = cal.startOfDay(for: latestLog.dateKey)
+            let hasLaterTaken = logs.contains { log in
+                guard log.medicationID == medID else { return false }
+                guard log.isTaken else { return false }
+                let candidateDay = cal.startOfDay(for: log.dateKey)
+                return candidateDay > latestDay && candidateDay <= today
+            }
+            return hasLaterTaken ? nil : medID
+        }
+
+        pendingCount = Set(validMedicationIDs).count
+    }
+
+    private func isEligibleForPending(_ medication: Medication) -> Bool {
+        guard medication.repeatUnit != .day || medication.interval > 1 else {
+            return false
+        }
+
+        guard medication.kind == .scheduled else {
+            return false
+        }
+
+        guard let endDate = medication.endDate else {
+            return true
+        }
+
+        let cal = Calendar.current
+        let startKey = cal.startOfDay(for: medication.startDate)
+        let endKey = cal.startOfDay(for: endDate)
+        guard endKey > startKey else { return false }
+
+        switch medication.repeatUnit {
+        case .day:
+            let diff = cal.dateComponents([.day], from: startKey, to: endKey).day ?? 0
+            return diff >= medication.interval
+        case .month:
+            guard let next = cal.date(byAdding: .month, value: medication.interval, to: startKey) else { return false }
+            return cal.startOfDay(for: next) <= endKey
         }
     }
 
