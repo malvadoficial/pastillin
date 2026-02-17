@@ -12,6 +12,7 @@ struct EditMedicationView: View {
     let creationKind: MedicationKind?
     let markTakenNowOnCreate: Bool
     let initialStartDate: Date?
+    let prefill: MedicationPrefillData?
 
     @State private var name: String = ""
     @State private var note: String = ""
@@ -82,12 +83,14 @@ struct EditMedicationView: View {
         medication: Medication?,
         creationKind: MedicationKind? = nil,
         markTakenNowOnCreate: Bool = false,
-        initialStartDate: Date? = nil
+        initialStartDate: Date? = nil,
+        prefill: MedicationPrefillData? = nil
     ) {
         self.medication = medication
         self.creationKind = creationKind
         self.markTakenNowOnCreate = markTakenNowOnCreate
         self.initialStartDate = initialStartDate
+        self.prefill = prefill
     }
 
     var body: some View {
@@ -605,6 +608,16 @@ struct EditMedicationView: View {
         if let initialStartDate {
             startDate = Calendar.current.startOfDay(for: initialStartDate)
         }
+        if let prefill {
+            name = prefill.name
+            note = prefill.note ?? ""
+            photoData = prefill.photoData
+            cimaNRegistro = prefill.cimaNRegistro
+            cimaNombreCompleto = prefill.cimaNombreCompleto
+            cimaPrincipioActivo = prefill.cimaPrincipioActivo
+            cimaLaboratorio = prefill.cimaLaboratorio
+            cimaProspectoURL = prefill.cimaProspectoURL
+        }
         occasionalReminderEnabled = false
         occasionalReminderTime = Date()
         occasionalPastTakenTime = Date()
@@ -952,6 +965,17 @@ struct EditMedicationView: View {
         }
         return nil
     }
+}
+
+struct MedicationPrefillData {
+    let name: String
+    let note: String?
+    let photoData: Data?
+    let cimaNRegistro: String?
+    let cimaNombreCompleto: String?
+    let cimaPrincipioActivo: String?
+    let cimaLaboratorio: String?
+    let cimaProspectoURL: String?
 }
 
 private struct URLSheetItem: Identifiable {

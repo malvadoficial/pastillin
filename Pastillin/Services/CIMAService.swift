@@ -8,6 +8,10 @@ struct CIMAMedicationSuggestion: Identifiable, Hashable {
     let nombreCompleto: String?
     let principioActivo: String?
     let laboratorio: String?
+    let prescriptionLabel: String?
+    let requiresPrescription: Bool?
+    let isCommercialized: Bool?
+    let isAuthorized: Bool?
 
     nonisolated var id: String {
         nregistro.isEmpty ? nombrePrincipal : nregistro
@@ -32,6 +36,38 @@ struct CIMAMedicationDetail: Hashable {
     let laboratorio: String?
     let prospectoURL: URL?
     let imageURL: URL?
+    let prescriptionLabel: String?
+    let requiresPrescription: Bool?
+    let isCommercialized: Bool?
+    let isAuthorized: Bool?
+}
+
+enum CIMASearchField: Int, CaseIterable, Identifiable {
+    case name
+    case activeIngredient
+    case registration
+
+    var id: Int { rawValue }
+}
+
+enum CIMAPrescriptionFilter: Int, CaseIterable, Identifiable {
+    case indifferent
+    case withPrescription
+    case withoutPrescription
+
+    var id: Int { rawValue }
+}
+
+struct CIMASearchFilters {
+    var authorizedOnly: Bool
+    var commercializedOnly: Bool
+    var prescriptionFilter: CIMAPrescriptionFilter
+
+    static let `default` = CIMASearchFilters(
+        authorizedOnly: true,
+        commercializedOnly: true,
+        prescriptionFilter: .indifferent
+    )
 }
 
 actor CIMAService {
@@ -42,15 +78,55 @@ actor CIMAService {
     }
 
     func fetchNameSuggestions(query: String, page: Int = 1, limit: Int = 6) async throws -> [CIMAMedicationSuggestion] {
-        guard query.count >= 3 else { return [] }
+        try await searchMedications(
+            query: query,
+            field: .name,
+            filters: .default,
+            page: page,
+            limit: limit
+        )
+    }
+
+    func searchMedications(
+        query: String,
+        field: CIMASearchField,
+        filters: CIMASearchFilters,
+        page: Int = 1,
+        limit: Int = 25
+    ) async throws -> [CIMAMedicationSuggestion] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch field {
+        case .registration:
+            guard !trimmed.isEmpty else { return [] }
+        case .name, .activeIngredient:
+            guard trimmed.count >= 3 else { return [] }
+        }
 
         var components = URLComponents(string: "https://cima.aemps.es/cima/rest/medicamentos")
-        components?.queryItems = [
-            URLQueryItem(name: "nombre", value: query),
-            URLQueryItem(name: "autorizados", value: "1"),
-            URLQueryItem(name: "comerc", value: "1"),
+        var items: [URLQueryItem] = [
+            URLQueryItem(name: "autorizados", value: filters.authorizedOnly ? "1" : "0"),
+            URLQueryItem(name: "comerc", value: filters.commercializedOnly ? "1" : "0"),
             URLQueryItem(name: "pagina", value: String(max(1, page)))
         ]
+
+        switch filters.prescriptionFilter {
+        case .indifferent:
+            break
+        case .withPrescription:
+            items.append(URLQueryItem(name: "conreceta", value: "1"))
+        case .withoutPrescription:
+            items.append(URLQueryItem(name: "conreceta", value: "0"))
+        }
+
+        switch field {
+        case .name:
+            items.append(URLQueryItem(name: "nombre", value: trimmed))
+        case .activeIngredient:
+            items.append(URLQueryItem(name: "pactivos", value: trimmed))
+        case .registration:
+            items.append(URLQueryItem(name: "nregistro", value: trimmed))
+        }
+        components?.queryItems = items
 
         guard let url = components?.url else { return [] }
 
@@ -59,7 +135,7 @@ actor CIMAService {
             return []
         }
 
-        let items: [CIMAMedicationDTO] = await MainActor.run {
+        let decoded: [CIMAMedicationDTO] = await MainActor.run {
             let decoder = JSONDecoder()
             if let wrapped = try? decoder.decode(CIMAMedicationListWrapped.self, from: data) {
                 return wrapped.medicamentos ?? wrapped.resultados ?? wrapped.resultadosBusqueda ?? []
@@ -70,33 +146,18 @@ actor CIMAService {
             return []
         }
 
-        let mapped = items.compactMap { dto -> CIMAMedicationSuggestion? in
-            let raw = (dto.nombre ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !raw.isEmpty else { return nil }
-
-            let main = Self.extractMainName(from: raw)
-            guard !main.isEmpty else { return nil }
-
-            return CIMAMedicationSuggestion(
-                nregistro: dto.nregistro ?? "",
-                nombrePrincipal: main,
-                dosis: Self.cleanOptionalText(dto.dosis),
-                nombreCompleto: Self.cleanOptionalText(dto.nombre),
-                principioActivo: Self.cleanOptionalText(dto.pactivos),
-                laboratorio: Self.cleanOptionalText(dto.labtitular)
-            )
+        let prescriptionFiltered = decoded.filter { dto in
+            switch filters.prescriptionFilter {
+            case .indifferent:
+                return true
+            case .withPrescription:
+                return dto.receta == true
+            case .withoutPrescription:
+                return dto.receta == false
+            }
         }
 
-        // Dedupe por combinación visible (nombre + dosis), para no perder variantes de dosis.
-        var seen = Set<String>()
-        let unique = mapped.filter { item in
-            let key = item.nombreConDosis.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
-            if seen.contains(key) { return false }
-            seen.insert(key)
-            return true
-        }
-
-        return Array(unique.prefix(limit))
+        return Array(Self.mapMedicationSuggestions(prescriptionFiltered).prefix(limit))
     }
 
     func fetchMedicationDetail(nregistro: String) async throws -> CIMAMedicationDetail? {
@@ -124,8 +185,26 @@ actor CIMAService {
         let nombreCompleto = Self.cleanOptionalText(json["nombre"] as? String)
         let prospectoURL = Self.findProspectoURL(in: json)
         let imageURL = Self.findMedicationImageURL(in: json)
+        let prescriptionLabel = Self.cleanOptionalText(json["cpresc"] as? String)
+        let requiresPrescription = json["receta"] as? Bool
+        let isCommercialized = json["comerc"] as? Bool
+        let isAuthorized: Bool? = {
+            guard let estado = json["estado"] as? [String: Any] else { return nil }
+            if estado["aut"] is NSNumber || estado["aut"] is String {
+                return true
+            }
+            return nil
+        }()
 
-        if nombreCompleto == nil, principioActivo == nil, laboratorio == nil, prospectoURL == nil, imageURL == nil {
+        if nombreCompleto == nil,
+           principioActivo == nil,
+           laboratorio == nil,
+           prospectoURL == nil,
+           imageURL == nil,
+           prescriptionLabel == nil,
+           requiresPrescription == nil,
+           isCommercialized == nil,
+           isAuthorized == nil {
             return nil
         }
 
@@ -134,7 +213,11 @@ actor CIMAService {
             principioActivo: principioActivo,
             laboratorio: laboratorio,
             prospectoURL: prospectoURL,
-            imageURL: imageURL
+            imageURL: imageURL,
+            prescriptionLabel: prescriptionLabel,
+            requiresPrescription: requiresPrescription,
+            isCommercialized: isCommercialized,
+            isAuthorized: isAuthorized
         )
     }
 
@@ -187,6 +270,38 @@ actor CIMAService {
         guard let value else { return nil }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func mapMedicationSuggestions(_ items: [CIMAMedicationDTO]) -> [CIMAMedicationSuggestion] {
+        let mapped = items.compactMap { dto -> CIMAMedicationSuggestion? in
+            let raw = (dto.nombre ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !raw.isEmpty else { return nil }
+
+            let main = Self.extractMainName(from: raw)
+            guard !main.isEmpty else { return nil }
+
+            return CIMAMedicationSuggestion(
+                nregistro: dto.nregistro ?? "",
+                nombrePrincipal: main,
+                dosis: Self.cleanOptionalText(dto.dosis),
+                nombreCompleto: Self.cleanOptionalText(dto.nombre),
+                principioActivo: Self.cleanOptionalText(dto.pactivos),
+                laboratorio: Self.cleanOptionalText(dto.labtitular),
+                prescriptionLabel: Self.cleanOptionalText(dto.cpresc),
+                requiresPrescription: dto.receta,
+                isCommercialized: dto.comerc,
+                isAuthorized: dto.estado?.aut != nil
+            )
+        }
+
+        var seen = Set<String>()
+        return mapped.filter { item in
+            let base = item.nregistro.isEmpty ? item.nombreConDosis : item.nregistro
+            let key = base.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            if seen.contains(key) { return false }
+            seen.insert(key)
+            return true
+        }
     }
 
     private static func findProspectoURL(in object: Any) -> URL? {
@@ -436,4 +551,12 @@ private struct CIMAMedicationDTO: Decodable {
     let dosis: String?
     let pactivos: String?
     let labtitular: String?
+    let cpresc: String?
+    let receta: Bool?
+    let comerc: Bool?
+    let estado: CIMAEstadoDTO?
+}
+
+private struct CIMAEstadoDTO: Decodable {
+    let aut: Double?
 }
