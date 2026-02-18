@@ -12,6 +12,8 @@ struct DayDetailView: View {
     @State private var selected: SelectedWrapper? = nil
     @State private var showingAddTypeDialog = false
     @State private var addMode: DayAddMode? = nil
+    @State private var deleteCandidate: DeleteCandidate? = nil
+    @State private var suppressRowTap = false
 
     var body: some View {
         let cal = Calendar.current
@@ -25,43 +27,69 @@ struct DayDetailView: View {
                     EmptyMedicinesStateView()
                 } else {
                     ForEach(items, id: \.med.id) { item in
-                        Button {
-                            selected = SelectedWrapper(med: item.med, log: item.log, dayKey: dayKey)
-                        } label: {
-                            HStack(spacing: 12) {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                                        Text(item.med.name)
-                                            .font(.headline)
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                    Text(item.med.name)
+                                        .font(.headline)
 
-                                        if item.med.kind == .occasional {
-                                            Text(L10n.tr("medication_occasional_badge_short"))
-                                                .font(.caption2.weight(.semibold))
-                                                .foregroundStyle(AppTheme.brandBlue)
-                                        }
-                                    }
-
-                                    // Hora: si tomada -> HH:mm o "hora no especificada", si no -> "—"
-                                    if item.log.isTaken {
-                                        Text(item.log.takenAt.map { timeString($0) } ?? L10n.tr("time_unspecified"))
-                                            .font(.subheadline)
-                                            .foregroundStyle(.secondary)
-                                    } else {
-                                        Text("—")
-                                            .font(.subheadline)
-                                            .foregroundStyle(.secondary)
+                                    if item.med.kind == .occasional {
+                                        Text(L10n.tr("medication_occasional_badge_short"))
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(AppTheme.brandBlue)
                                     }
                                 }
 
-                                Spacer()
+                                // Hora: si tomada -> HH:mm o "hora no especificada", si no -> "—"
+                                if item.log.isTaken {
+                                    Text(item.log.takenAt.map { timeString($0) } ?? L10n.tr("time_unspecified"))
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    Text("—")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
 
+                            Spacer()
+
+                            if canModifyLog(on: dayKey) {
+                                Button {
+                                    toggleTaken(item.log, dayKey: dayKey)
+                                } label: {
+                                    Text(item.log.isTaken ? L10n.tr("status_taken_masc") : L10n.tr("status_not_taken_masc"))
+                                        .font(.footnote.weight(.semibold))
+                                        .frame(width: 94, height: 30)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(item.log.isTaken ? AppTheme.brandBlue : AppTheme.brandRed)
+                            } else {
                                 Text(item.log.isTaken ? L10n.tr("status_taken_masc") : L10n.tr("status_not_taken_masc"))
                                     .font(.subheadline)
                                     .foregroundStyle(item.log.isTaken ? AppTheme.brandBlue : .secondary)
                             }
-                            .padding(.vertical, 6)
                         }
-                        .buttonStyle(.plain)
+                        .padding(.vertical, 6)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            guard !suppressRowTap else { return }
+                            selected = SelectedWrapper(med: item.med, log: item.log, dayKey: dayKey)
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            if canModifyLog(on: dayKey), item.med.kind == .scheduled {
+                                Button(role: .destructive) {
+                                    deleteCandidate = DeleteCandidate(
+                                        medicationID: item.med.id,
+                                        logID: item.log.id,
+                                        dayKey: dayKey
+                                    )
+                                } label: {
+                                    Label(L10n.tr("detail_remove_for_day"), systemImage: "trash")
+                                }
+                                .tint(AppTheme.brandRed)
+                            }
+                        }
                     }
                 }
             }
@@ -124,6 +152,16 @@ struct DayDetailView: View {
                     initialStartDate: dayKey
                 )
             }
+            .alert(L10n.tr("detail_remove_for_day_title"), isPresented: deleteConfirmationBinding) {
+                Button(L10n.tr("button_cancel"), role: .cancel) {
+                    deleteCandidate = nil
+                }
+                Button(L10n.tr("detail_remove_for_day_confirm"), role: .destructive) {
+                    deleteScheduledIntakeForSelectedDay()
+                }
+            } message: {
+                Text(L10n.tr("detail_remove_for_day_message"))
+            }
         }
     }
 
@@ -151,6 +189,62 @@ struct DayDetailView: View {
         }
     }
 
+    private var deleteConfirmationBinding: Binding<Bool> {
+        Binding(
+            get: { deleteCandidate != nil },
+            set: { newValue in
+                if !newValue {
+                    deleteCandidate = nil
+                }
+            }
+        )
+    }
+
+    private func canModifyLog(on dayKey: Date) -> Bool {
+        let cal = Calendar.current
+        let target = cal.startOfDay(for: dayKey)
+        let today = cal.startOfDay(for: Date())
+        return target <= today
+    }
+
+    private func toggleTaken(_ log: IntakeLog, dayKey: Date) {
+        guard canModifyLog(on: dayKey) else { return }
+
+        suppressRowTap = true
+        defer {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                suppressRowTap = false
+            }
+        }
+
+        let cal = Calendar.current
+        let isToday = cal.isDateInToday(dayKey)
+
+        if log.isTaken {
+            log.isTaken = false
+            log.takenAt = nil
+        } else {
+            log.isTaken = true
+            log.takenAt = isToday ? Date() : nil
+        }
+
+        try? modelContext.save()
+    }
+
+    private func deleteScheduledIntakeForSelectedDay() {
+        guard let candidate = deleteCandidate else { return }
+        defer { deleteCandidate = nil }
+
+        guard canModifyLog(on: candidate.dayKey) else { return }
+        guard let medication = medications.first(where: { $0.id == candidate.medicationID }) else { return }
+        guard medication.kind == .scheduled else { return }
+        guard let log = logs.first(where: { $0.id == candidate.logID }) else { return }
+
+        medication.setSkipped(true, on: candidate.dayKey)
+        modelContext.delete(log)
+        try? modelContext.save()
+    }
+
     // MARK: - UI helpers
 
     private func dayTitle(_ d: Date) -> String {
@@ -175,6 +269,12 @@ struct DayDetailView: View {
         let id = UUID()
         let med: Medication
         let log: IntakeLog
+        let dayKey: Date
+    }
+
+    struct DeleteCandidate {
+        let medicationID: UUID
+        let logID: UUID
         let dayKey: Date
     }
 }

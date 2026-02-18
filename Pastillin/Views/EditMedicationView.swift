@@ -33,9 +33,11 @@ struct EditMedicationView: View {
     @State private var showCamera = false
     @State private var showLibrary = false
     @State private var showPickerSheet = false
+    @State private var showPhotoPreview = false
     @State private var didCustomizePhotoManually = false
     @State private var showDeleteConfirmation = false
     @State private var cimaNRegistro: String? = nil
+    @State private var cimaCN: String? = nil
     @State private var cimaNombreCompleto: String? = nil
     @State private var cimaPrincipioActivo: String? = nil
     @State private var cimaLaboratorio: String? = nil
@@ -45,6 +47,8 @@ struct EditMedicationView: View {
     @State private var historyLogForActions: IntakeLog? = nil
     @State private var historyEditedTime: Date = Date()
     @State private var isHistoryEditing: Bool = false
+    @State private var showShoppingCart = false
+    @State private var showAddToCartOnCreatePrompt = false
 
     @StateObject private var nameAutocomplete = MedicationNameAutocompleteViewModel()
     @FocusState private var focusedField: Field?
@@ -71,7 +75,7 @@ struct EditMedicationView: View {
         return cal.startOfDay(for: startDate) == cal.startOfDay(for: Date())
     }
     private var hasOfficialInfo: Bool {
-        cimaNombreCompleto != nil || cimaPrincipioActivo != nil || cimaLaboratorio != nil || cimaProspectoURL != nil || cimaNRegistro != nil
+        cimaNombreCompleto != nil || cimaPrincipioActivo != nil || cimaLaboratorio != nil || cimaProspectoURL != nil || cimaNRegistro != nil || cimaCN != nil
     }
 
     private enum Field {
@@ -143,9 +147,7 @@ struct EditMedicationView: View {
                         .submitLabel(.done)
                         .onSubmit { focusedField = nil }
 
-                    if !isOccasionalForm {
-                        Toggle(L10n.tr("edit_toggle_active"), isOn: $isActive)
-                    }
+                    Toggle(L10n.tr("edit_toggle_active"), isOn: $isActive)
                 }
 
                 if hasOfficialInfo || isLoadingCIMADetail {
@@ -176,6 +178,16 @@ struct EditMedicationView: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                 Text(laboratorio)
+                                    .font(.subheadline.weight(.semibold))
+                            }
+                        }
+
+                        if let cn = cimaCN {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(L10n.tr("official_info_cn"))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(cn)
                                     .font(.subheadline.weight(.semibold))
                             }
                         }
@@ -212,7 +224,7 @@ struct EditMedicationView: View {
                 }
 
                 // MARK: Pauta
-                if isOccasionalForm {
+                if isOccasionalForm && isActive && medication == nil {
                     Section(L10n.tr("occasional_section_date")) {
                         DatePicker(
                             L10n.tr("occasional_date"),
@@ -246,7 +258,7 @@ struct EditMedicationView: View {
                             }
                         }
                     }
-                } else {
+                } else if !isOccasionalForm && isActive {
                     Section(L10n.tr("edit_section_schedule")) {
                         DatePicker(L10n.tr("edit_date_start"), selection: $startDate, displayedComponents: [.date])
 
@@ -313,7 +325,7 @@ struct EditMedicationView: View {
                         Image(uiImage: ui)
                             .resizable()
                             .scaledToFill()
-                            .frame(height: 180)
+                            .frame(height: 132)
                             .clipped()
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                             .contentShape(Rectangle())
@@ -322,38 +334,47 @@ struct EditMedicationView: View {
                         MedicationDefaultArtworkView(
                             kind: currentDefaultArtworkKind,
                             width: nil,
-                            height: 180,
+                            height: 132,
                             cornerRadius: 12
                         )
                         .contentShape(Rectangle())
                         .onTapGesture { showPickerSheet = true }
                     }
+                }
 
-                    Button {
-                        showPickerSheet = true
-                    } label: {
-                        Label(L10n.tr(photoData != nil ? "photo_change" : "photo_choose"), systemImage: "photo.on.rectangle")
-                    }
-
-                    if photoData != nil {
-                        Button(role: .destructive) {
-                            didCustomizePhotoManually = true
-                            photoData = nil
+                if medication != nil {
+                    Section {
+                        Button {
+                            medication?.inShoppingCart = true
+                            if medication?.shoppingCartSortOrder == nil {
+                                medication?.shoppingCartSortOrder = nextCartSortOrder
+                            }
+                            try? modelContext.save()
                         } label: {
-                            Text(L10n.tr("photo_remove"))
+                            Label(
+                                medication?.inShoppingCart == true ? L10n.tr("cart_already_added") : L10n.tr("cart_add"),
+                                systemImage: medication?.inShoppingCart == true ? "cart.fill" : "cart.badge.plus"
+                            )
+                            .frame(maxWidth: .infinity, alignment: .center)
                         }
                     }
                 }
 
                 // MARK: Historial (solo si hay datos)
-                if let med = medication, !history(for: med).isEmpty {
+                if let med = medication {
+                    let historyItems = history(for: med)
+                    if !historyItems.isEmpty {
                     Section {
-                        ForEach(history(for: med)) { log in
-                            historyRow(log)
+                        ForEach(Array(historyItems.enumerated()), id: \.element.id) { index, log in
+                            historyRow(log, isLatest: index == 0)
                         }
                     } header: {
                         HStack {
-                            Text(String(format: L10n.tr("edit_section_history_format"), maxHistoryItems))
+                            if med.kind == .occasional {
+                                Text(L10n.tr("occasional_section_intakes"))
+                            } else {
+                                Text(String(format: L10n.tr("edit_section_history_format"), maxHistoryItems))
+                            }
                             Spacer()
                             Button(isHistoryEditing ? L10n.tr("button_done") : L10n.tr("button_edit")) {
                                 isHistoryEditing.toggle()
@@ -366,6 +387,7 @@ struct EditMedicationView: View {
                         .textCase(nil)
                     }
                 }
+                }
 
                 if medication != nil {
                     Section {
@@ -377,6 +399,7 @@ struct EditMedicationView: View {
                         }
                     }
                 }
+
             }
             .navigationTitle(titleText)
             .navigationBarTitleDisplayMode(.inline)
@@ -386,8 +409,14 @@ struct EditMedicationView: View {
                     ToolbarItem(placement: .topBarLeading) {
                         Button(L10n.tr("button_cancel")) { dismiss() }
                     }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button(L10n.tr("button_save")) { save() }
+                    ToolbarItemGroup(placement: .topBarTrailing) {
+                        Button {
+                            showShoppingCart = true
+                        } label: {
+                            ShoppingCartIconView(count: shoppingCartCount)
+                        }
+
+                        Button(L10n.tr("button_save")) { onSaveTapped() }
                             .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                     ToolbarItemGroup(placement: .keyboard) {
@@ -409,6 +438,7 @@ struct EditMedicationView: View {
                 }
             }
             .onChange(of: startDate) { _, _ in
+                guard isActive else { return }
                 if !canConfigureOccasionalReminder {
                     occasionalReminderEnabled = false
                 }
@@ -430,6 +460,10 @@ struct EditMedicationView: View {
                         hasCamera: UIImagePickerController.isSourceTypeAvailable(.camera),
                         onChooseLibrary: openLibraryPicker,
                         onChooseCamera: openCameraPicker,
+                        canViewPhoto: photoData != nil,
+                        onViewPhoto: openPhotoPreview,
+                        canDeletePhoto: photoData != nil,
+                        onDeletePhoto: removePhoto,
                         onCancel: closePhotoPicker
                     )
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
@@ -439,6 +473,7 @@ struct EditMedicationView: View {
             .overlay {
                 if let log = historyLogForActions {
                     HistoryEditOverlay(
+                        allowsDateEdition: isOccasionalForm,
                         selectedTime: $historyEditedTime,
                         onSaveTime: { saveHistoryTime(for: log) },
                         onDeleteIntake: { deleteHistoryLog(for: log) },
@@ -454,6 +489,20 @@ struct EditMedicationView: View {
             .sheet(isPresented: $showLibrary) {
                 ImagePicker(sourceType: .photoLibrary, imageData: $photoData)
             }
+            .sheet(isPresented: $showPhotoPreview) {
+                if let data = photoData, let image = UIImage(data: data) {
+                    NavigationStack {
+                        LargePhotoPreview(image: image)
+                            .toolbar {
+                                ToolbarItem(placement: .topBarTrailing) {
+                                    Button(L10n.tr("button_close")) {
+                                        showPhotoPreview = false
+                                    }
+                                }
+                            }
+                    }
+                }
+            }
             .alert(L10n.tr("edit_delete_title"), isPresented: $showDeleteConfirmation) {
                 Button(L10n.tr("button_cancel"), role: .cancel) {}
                 Button(L10n.tr("edit_delete_confirm"), role: .destructive) {
@@ -461,6 +510,17 @@ struct EditMedicationView: View {
                 }
             } message: {
                 Text(L10n.tr("edit_delete_message"))
+            }
+            .alert(L10n.tr("save_add_to_cart_prompt_title"), isPresented: $showAddToCartOnCreatePrompt) {
+                Button(L10n.tr("save_add_to_cart_yes")) {
+                    save(addToCartOnCreate: true)
+                }
+                Button(L10n.tr("save_add_to_cart_no")) {
+                    save(addToCartOnCreate: false)
+                }
+                Button(L10n.tr("button_cancel"), role: .cancel) {}
+            } message: {
+                Text(L10n.tr("save_add_to_cart_prompt_message"))
             }
             .sheet(item: $prospectoSheetURL) { item in
                 NavigationStack {
@@ -474,12 +534,25 @@ struct EditMedicationView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showShoppingCart) {
+                NavigationStack {
+                    ShoppingCartView()
+                }
+            }
             .animation(.easeInOut(duration: 0.2), value: showPickerSheet)
             .animation(.easeInOut(duration: 0.2), value: historyLogForActions?.id)
             .onDisappear {
                 nameAutocomplete.cancel()
             }
         }
+    }
+
+    private var shoppingCartCount: Int {
+        allMeds.filter { $0.inShoppingCart }.count
+    }
+
+    private var nextCartSortOrder: Int {
+        (allMeds.compactMap { $0.shoppingCartSortOrder }.max() ?? -1) + 1
     }
 
     private var titleText: String {
@@ -492,20 +565,32 @@ struct EditMedicationView: View {
     // MARK: - Historial helpers
 
     private func history(for medication: Medication) -> [IntakeLog] {
-        let filtered = allLogs.filter { $0.medicationID == medication.id }
+        let filtered: [IntakeLog]
+        if medication.kind == .occasional {
+            let nameKey = normalizedMedicationName(medication.name)
+            let siblingIDs = Set(
+                allMeds
+                    .filter { $0.kind == .occasional && normalizedMedicationName($0.name) == nameKey }
+                    .map(\.id)
+            )
+            filtered = allLogs.filter { siblingIDs.contains($0.medicationID) }
+        } else {
+            filtered = allLogs.filter { $0.medicationID == medication.id }
+        }
 
         let sorted = filtered.sorted {
+            let lhsDate = $0.takenAt ?? $0.dateKey
+            let rhsDate = $1.takenAt ?? $1.dateKey
+            if lhsDate != rhsDate { return lhsDate > rhsDate }
             if $0.dateKey != $1.dateKey { return $0.dateKey > $1.dateKey }
-            let t0 = $0.takenAt ?? $0.dateKey
-            let t1 = $1.takenAt ?? $1.dateKey
-            return t0 > t1
+            return $0.id.uuidString > $1.id.uuidString
         }
 
         return Array(sorted.prefix(maxHistoryItems))
     }
 
     @ViewBuilder
-    private func historyRow(_ log: IntakeLog) -> some View {
+    private func historyRow(_ log: IntakeLog, isLatest: Bool = false) -> some View {
         HStack {
             if isHistoryEditing {
                 Button {
@@ -536,6 +621,11 @@ struct EditMedicationView: View {
             }
         }
         .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(isLatest ? AppTheme.brandBlue.opacity(0.10) : Color.clear)
+        )
     }
 
     @ViewBuilder
@@ -565,7 +655,9 @@ struct EditMedicationView: View {
             repeatUnit = med.repeatUnit
             interval = med.interval
             isDailySchedule = (repeatUnit == .day && interval == 1)
-            startDate = med.startDate
+            if let configuredStartDate = med.startDateRaw {
+                startDate = configuredStartDate
+            }
             occasionalReminderEnabled = med.occasionalReminderEnabled
             let h = med.occasionalReminderHour ?? 9
             let m = med.occasionalReminderMinute ?? 0
@@ -580,6 +672,7 @@ struct EditMedicationView: View {
             ) ?? Date()
             photoData = med.photoData
             cimaNRegistro = med.cimaNRegistro
+            cimaCN = med.cimaCN
             cimaNombreCompleto = med.cimaNombreCompleto
             cimaPrincipioActivo = med.cimaPrincipioActivo
             cimaLaboratorio = med.cimaLaboratorio
@@ -587,10 +680,14 @@ struct EditMedicationView: View {
 
             if med.kind == .occasional {
                 let cal = Calendar.current
-                let dayKey = cal.startOfDay(for: med.startDate)
-                if let existing = allLogs.first(where: { $0.medicationID == med.id && cal.isDate($0.dateKey, inSameDayAs: dayKey) }),
-                   let existingTime = existing.takenAt {
-                    occasionalPastTakenTime = existingTime
+                if let configuredStartDate = med.startDateRaw {
+                    let dayKey = cal.startOfDay(for: configuredStartDate)
+                    if let existing = allLogs.first(where: { $0.medicationID == med.id && cal.isDate($0.dateKey, inSameDayAs: dayKey) }),
+                       let existingTime = existing.takenAt {
+                        occasionalPastTakenTime = existingTime
+                    } else {
+                        occasionalPastTakenTime = Date()
+                    }
                 } else {
                     occasionalPastTakenTime = Date()
                 }
@@ -613,6 +710,7 @@ struct EditMedicationView: View {
             note = prefill.note ?? ""
             photoData = prefill.photoData
             cimaNRegistro = prefill.cimaNRegistro
+            cimaCN = prefill.cimaCN
             cimaNombreCompleto = prefill.cimaNombreCompleto
             cimaPrincipioActivo = prefill.cimaPrincipioActivo
             cimaLaboratorio = prefill.cimaLaboratorio
@@ -624,7 +722,15 @@ struct EditMedicationView: View {
         isDailySchedule = true
     }
 
-    private func save() {
+    private func onSaveTapped() {
+        if medication == nil {
+            showAddToCartOnCreatePrompt = true
+            return
+        }
+        save(addToCartOnCreate: false)
+    }
+
+    private func save(addToCartOnCreate: Bool) {
         let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let chosenDate = Calendar.current.startOfDay(for: startDate)
         let kind = effectiveKind
@@ -636,33 +742,47 @@ struct EditMedicationView: View {
             med.photoData = photoData
             med.kind = kind
             med.cimaNRegistro = cimaNRegistro
+            med.cimaCN = normalizedOptional(cimaCN)
             med.cimaNombreCompleto = normalizedOptional(cimaNombreCompleto)
             med.cimaPrincipioActivo = normalizedOptional(cimaPrincipioActivo)
             med.cimaLaboratorio = normalizedOptional(cimaLaboratorio)
             med.cimaProspectoURL = normalizedOptional(cimaProspectoURL)
 
             if kind == .occasional {
-                med.isActive = true
+                med.isActive = isActive
                 med.repeatUnit = .day
                 med.interval = 1
-                med.startDate = chosenDate
-                med.endDate = nil
-                if canConfigureOccasionalReminder && occasionalReminderEnabled {
-                    med.occasionalReminderEnabled = true
-                    let hm = Calendar.current.dateComponents([.hour, .minute], from: occasionalReminderTime)
-                    med.occasionalReminderHour = hm.hour ?? 9
-                    med.occasionalReminderMinute = hm.minute ?? 0
+                if isActive {
+                    med.startDate = chosenDate
+                    med.endDate = nil
+                    if canConfigureOccasionalReminder && occasionalReminderEnabled {
+                        med.occasionalReminderEnabled = true
+                        let hm = Calendar.current.dateComponents([.hour, .minute], from: occasionalReminderTime)
+                        med.occasionalReminderHour = hm.hour ?? 9
+                        med.occasionalReminderMinute = hm.minute ?? 0
+                    } else {
+                        med.occasionalReminderEnabled = false
+                        med.occasionalReminderHour = nil
+                        med.occasionalReminderMinute = nil
+                    }
                 } else {
+                    med.startDateRaw = nil
+                    med.endDate = nil
                     med.occasionalReminderEnabled = false
                     med.occasionalReminderHour = nil
                     med.occasionalReminderMinute = nil
                 }
             } else {
                 med.isActive = isActive
-                med.repeatUnit = isDailySchedule ? .day : repeatUnit
-                med.interval = isDailySchedule ? 1 : max(1, interval)
-                med.startDate = chosenDate
-                med.endDate = hasEndDate ? endDate : nil
+                if isActive {
+                    med.repeatUnit = isDailySchedule ? .day : repeatUnit
+                    med.interval = isDailySchedule ? 1 : max(1, interval)
+                    med.startDate = chosenDate
+                    med.endDate = hasEndDate ? endDate : nil
+                } else {
+                    med.startDateRaw = nil
+                    med.endDate = nil
+                }
                 med.occasionalReminderEnabled = false
                 med.occasionalReminderHour = nil
                 med.occasionalReminderMinute = nil
@@ -673,7 +793,7 @@ struct EditMedicationView: View {
             let med = Medication(
                 name: cleanName,
                 note: note.isEmpty ? nil : note,
-                isActive: kind == .occasional ? true : isActive,
+                isActive: isActive,
                 kind: kind,
                 repeatUnit: kind == .occasional ? .day : (isDailySchedule ? .day : repeatUnit),
                 interval: kind == .occasional ? 1 : (isDailySchedule ? 1 : max(1, interval)),
@@ -683,11 +803,12 @@ struct EditMedicationView: View {
             med.sortOrder = nextOrder
             med.photoData = photoData
             med.cimaNRegistro = cimaNRegistro
+            med.cimaCN = normalizedOptional(cimaCN)
             med.cimaNombreCompleto = normalizedOptional(cimaNombreCompleto)
             med.cimaPrincipioActivo = normalizedOptional(cimaPrincipioActivo)
             med.cimaLaboratorio = normalizedOptional(cimaLaboratorio)
             med.cimaProspectoURL = normalizedOptional(cimaProspectoURL)
-            if kind == .occasional && canConfigureOccasionalReminder && occasionalReminderEnabled {
+            if kind == .occasional && med.isActive && canConfigureOccasionalReminder && occasionalReminderEnabled {
                 med.occasionalReminderEnabled = true
                 let hm = Calendar.current.dateComponents([.hour, .minute], from: occasionalReminderTime)
                 med.occasionalReminderHour = hm.hour ?? 9
@@ -698,13 +819,24 @@ struct EditMedicationView: View {
                 med.occasionalReminderMinute = nil
             }
             modelContext.insert(med)
-            if kind == .occasional {
+            if addToCartOnCreate {
+                med.inShoppingCart = true
+                med.shoppingCartSortOrder = nextCartSortOrder
+            }
+            if kind == .occasional && med.isActive {
                 upsertOccasionalLogOnCreate(for: med, date: chosenDate)
+            }
+            if !med.isActive {
+                med.startDateRaw = nil
+                med.endDate = nil
+                med.occasionalReminderEnabled = false
+                med.occasionalReminderHour = nil
+                med.occasionalReminderMinute = nil
             }
             targetMed = med
         }
 
-        if kind == .occasional {
+        if kind == .occasional && targetMed.isActive {
             upsertOccasionalPastLogIfNeeded(for: targetMed, date: chosenDate)
         }
 
@@ -731,6 +863,18 @@ struct EditMedicationView: View {
         DispatchQueue.main.async {
             showCamera = true
         }
+    }
+
+    private func removePhoto() {
+        didCustomizePhotoManually = true
+        photoData = nil
+        showPickerSheet = false
+    }
+
+    private func openPhotoPreview() {
+        guard photoData != nil else { return }
+        showPickerSheet = false
+        showPhotoPreview = true
     }
 
     private func upsertOccasionalPastLogIfNeeded(for med: Medication, date: Date) {
@@ -802,14 +946,20 @@ struct EditMedicationView: View {
 
     private func saveHistoryTime(for log: IntakeLog) {
         let cal = Calendar.current
-        let dayKey = cal.startOfDay(for: log.dateKey)
+        let editedDayKey = cal.startOfDay(for: historyEditedTime)
         let hm = cal.dateComponents([.hour, .minute], from: historyEditedTime)
-        var comps = cal.dateComponents([.year, .month, .day], from: dayKey)
+        var comps = cal.dateComponents([.year, .month, .day], from: editedDayKey)
         comps.hour = hm.hour
         comps.minute = hm.minute
-        let finalTakenAt = cal.date(from: comps) ?? dayKey
+        let finalTakenAt = cal.date(from: comps) ?? editedDayKey
 
         log.isTaken = true
+        if isOccasionalForm {
+            log.dateKey = editedDayKey
+            if let med = allMeds.first(where: { $0.id == log.medicationID }) {
+                med.startDate = editedDayKey
+            }
+        }
         log.takenAt = finalTakenAt
         try? modelContext.save()
         historyLogForActions = nil
@@ -837,6 +987,12 @@ struct EditMedicationView: View {
         historyLogForActions = nil
     }
 
+    private func normalizedMedicationName(_ name: String) -> String {
+        name
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+    }
+
     private func syncOccasionalReminder(for med: Medication) {
         guard med.kind == .occasional else {
             NotificationService.cancelOccasionalReminder(medicationID: med.id)
@@ -849,8 +1005,13 @@ struct EditMedicationView: View {
             return
         }
 
+        guard let configuredStartDate = med.startDateRaw else {
+            NotificationService.cancelOccasionalReminder(medicationID: med.id)
+            return
+        }
+
         let cal = Calendar.current
-        let dayKey = cal.startOfDay(for: med.startDate)
+        let dayKey = cal.startOfDay(for: configuredStartDate)
         guard dayKey > cal.startOfDay(for: Date()) else {
             NotificationService.cancelOccasionalReminder(medicationID: med.id)
             return
@@ -883,6 +1044,7 @@ struct EditMedicationView: View {
         didCustomizePhotoManually = false
         photoData = nil
         cimaNRegistro = suggestion.nregistro.isEmpty ? nil : suggestion.nregistro
+        cimaCN = nil
         cimaNombreCompleto = normalizedOptional(suggestion.nombreCompleto)
         cimaPrincipioActivo = normalizedOptional(suggestion.principioActivo)
         cimaLaboratorio = normalizedOptional(suggestion.laboratorio)
@@ -906,6 +1068,7 @@ struct EditMedicationView: View {
                     if let lab = normalizedOptional(detail.laboratorio) {
                         self.cimaLaboratorio = lab
                     }
+                    self.cimaCN = normalizedOptional(detail.cn)
                     self.cimaProspectoURL = normalizedOptional(detail.prospectoURL?.absoluteString)
                     if let imageURL = detail.imageURL {
                         Task {
@@ -972,6 +1135,7 @@ struct MedicationPrefillData {
     let note: String?
     let photoData: Data?
     let cimaNRegistro: String?
+    let cimaCN: String?
     let cimaNombreCompleto: String?
     let cimaPrincipioActivo: String?
     let cimaLaboratorio: String?
@@ -1016,6 +1180,10 @@ private struct PhotoSourceOverlay: View {
     let hasCamera: Bool
     let onChooseLibrary: () -> Void
     let onChooseCamera: () -> Void
+    let canViewPhoto: Bool
+    let onViewPhoto: () -> Void
+    let canDeletePhoto: Bool
+    let onDeletePhoto: () -> Void
     let onCancel: () -> Void
 
     var body: some View {
@@ -1047,6 +1215,24 @@ private struct PhotoSourceOverlay: View {
                     .buttonStyle(.plain)
                 }
 
+                if canViewPhoto {
+                    Button(action: onViewPhoto) {
+                        Label(L10n.tr("photo_view"), systemImage: "photo")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 10)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                if canDeletePhoto {
+                    Button(role: .destructive, action: onDeletePhoto) {
+                        Label(L10n.tr("photo_remove"), systemImage: "trash")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 10)
+                    }
+                    .buttonStyle(.plain)
+                }
+
                 Divider()
 
                 Button(L10n.tr("button_cancel"), action: onCancel)
@@ -1062,7 +1248,24 @@ private struct PhotoSourceOverlay: View {
     }
 }
 
+private struct LargePhotoPreview: View {
+    let image: UIImage
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+                .padding(16)
+        }
+        .navigationTitle(L10n.tr("photo_view"))
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
 private struct HistoryEditOverlay: View {
+    let allowsDateEdition: Bool
     @Binding var selectedTime: Date
     let onSaveTime: () -> Void
     let onDeleteIntake: () -> Void
@@ -1082,16 +1285,19 @@ private struct HistoryEditOverlay: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 DatePicker(
-                    L10n.tr("history_edit_time_picker"),
+                    L10n.tr(allowsDateEdition ? "history_edit_datetime_picker" : "history_edit_time_picker"),
                     selection: $selectedTime,
-                    displayedComponents: [.hourAndMinute]
+                    displayedComponents: allowsDateEdition ? [.date, .hourAndMinute] : [.hourAndMinute]
                 )
                 .datePickerStyle(.wheel)
                 .labelsHidden()
                 .frame(maxWidth: .infinity)
 
                 Button(action: onSaveTime) {
-                    Label(L10n.tr("history_action_save_time"), systemImage: "clock")
+                    Label(
+                        L10n.tr(allowsDateEdition ? "history_action_save_datetime" : "history_action_save_time"),
+                        systemImage: "clock"
+                    )
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)

@@ -1,9 +1,15 @@
 import SwiftUI
 import UIKit
+import WebKit
 
 private struct AEMPSDetailWrapper: Identifiable {
     let id = UUID()
     let suggestion: CIMAMedicationSuggestion
+}
+
+private struct AEMPSURLSheetItem: Identifiable {
+    let id = UUID()
+    let url: URL
 }
 
 private enum AEMPSAddMode: Int, Identifiable {
@@ -36,11 +42,25 @@ struct AEMPSSearchView: View {
     var body: some View {
         List {
             Section(L10n.tr("aemps_search_section")) {
-                TextField(L10n.tr("aemps_search_query_placeholder"), text: $searchText)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled(true)
-                    .submitLabel(.search)
-                    .onSubmit { runSearch() }
+                HStack(spacing: 8) {
+                    TextField(L10n.tr("aemps_search_query_placeholder"), text: $searchText)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled(true)
+                        .submitLabel(.done)
+
+                    if !searchText.isEmpty {
+                        Button {
+                            searchText = ""
+                            results = []
+                            didSearch = false
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(L10n.tr("button_clear"))
+                    }
+                }
 
                 Picker(L10n.tr("aemps_search_mode"), selection: $searchField) {
                     Text(L10n.tr("aemps_search_mode_name")).tag(CIMASearchField.name)
@@ -61,10 +81,13 @@ struct AEMPSSearchView: View {
                     runSearch()
                 } label: {
                     HStack {
+                        Spacer()
                         if isSearching { ProgressView().padding(.trailing, 4) }
                         Text(L10n.tr("aemps_search_button"))
+                        Spacer()
                     }
                 }
+                .buttonStyle(.borderedProminent)
                 .disabled(isSearching || !canSearch)
             }
 
@@ -165,6 +188,8 @@ private struct AEMPSMedicationDetailView: View {
     @State private var isLoadingDetail = false
     @State private var addMode: AEMPSAddMode? = nil
     @State private var showingAddTypeDialog = false
+    @State private var documentSheetURL: AEMPSURLSheetItem? = nil
+    @State private var showAdditionalInfo = false
 
     private let cimaService = CIMAService()
 
@@ -202,6 +227,9 @@ private struct AEMPSMedicationDetailView: View {
                 if let lab = normalized(detail?.laboratorio ?? suggestion.laboratorio) {
                     infoRow(title: L10n.tr("official_info_laboratory"), value: lab)
                 }
+                if let cn = normalized(detail?.cn) {
+                    infoRow(title: L10n.tr("official_info_cn"), value: cn)
+                }
                 if let prescriptionText = normalized(detail?.prescriptionLabel ?? suggestion.prescriptionLabel) {
                     infoRow(title: L10n.tr("aemps_prescription_label"), value: prescriptionText)
                 }
@@ -217,18 +245,67 @@ private struct AEMPSMedicationDetailView: View {
 
                 infoRow(title: L10n.tr("official_info_source"), value: L10n.tr("official_info_source_value"))
 
-                if let prospecto = detail?.prospectoURL {
-                    Link(destination: prospecto) {
-                        Label(L10n.tr("official_info_leaflet_button"), systemImage: "doc.text")
-                    }
-                }
-
                 if isLoadingDetail {
                     HStack(spacing: 8) {
                         ProgressView()
                         Text(L10n.tr("official_info_loading"))
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            if additionalInfoAvailable {
+                Section {
+                    DisclosureGroup(L10n.tr("aemps_additional_info_section"), isExpanded: $showAdditionalInfo) {
+                        if let cn = normalized(detail?.cn) {
+                            infoRow(title: L10n.tr("official_info_cn"), value: cn)
+                        }
+
+                        if let substitutable = detail?.substitutableByGeneric {
+                            infoRow(title: L10n.tr("aemps_generic_substitutable"), value: boolText(substitutable))
+                        }
+
+                        if let statusText {
+                            infoRow(title: L10n.tr("aemps_status"), value: statusText)
+                        }
+
+                        if let dose = normalized(detail?.dosis) {
+                            infoRow(title: L10n.tr("aemps_dose"), value: dose)
+                        }
+
+                        if let pharmaForm = normalized(detail?.simplifiedPharmaceuticalForm) {
+                            infoRow(title: L10n.tr("aemps_pharma_form_simple"), value: pharmaForm)
+                        }
+
+                        if let routesText {
+                            infoRow(title: L10n.tr("aemps_routes"), value: routesText)
+                        }
+
+                        if let excipientsText {
+                            infoRow(title: L10n.tr("aemps_excipients"), value: excipientsText)
+                        }
+
+                        if !documentItems.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(L10n.tr("aemps_documents"))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                ForEach(documentItems, id: \.title) { item in
+                                    Button {
+                                        documentSheetURL = AEMPSURLSheetItem(url: item.url)
+                                    } label: {
+                                        Label(item.title, systemImage: "doc.text")
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+
+                        if let atcText {
+                            infoRow(title: L10n.tr("aemps_atc"), value: atcText)
+                        }
                     }
                 }
             }
@@ -279,12 +356,25 @@ private struct AEMPSMedicationDetailView: View {
                     note: nil,
                     photoData: imageData,
                     cimaNRegistro: suggestion.nregistro.isEmpty ? nil : suggestion.nregistro,
+                    cimaCN: normalized(detail?.cn),
                     cimaNombreCompleto: normalized(detail?.nombreCompleto ?? suggestion.nombreCompleto),
                     cimaPrincipioActivo: normalized(detail?.principioActivo ?? suggestion.principioActivo),
                     cimaLaboratorio: normalized(detail?.laboratorio ?? suggestion.laboratorio),
                     cimaProspectoURL: detail?.prospectoURL?.absoluteString
                 )
             )
+        }
+        .sheet(item: $documentSheetURL) { item in
+            NavigationStack {
+                AEMPSProspectoScreen(url: item.url)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button(L10n.tr("button_close")) {
+                                documentSheetURL = nil
+                            }
+                        }
+                    }
+            }
         }
         .onAppear {
             loadDetailIfNeeded()
@@ -312,6 +402,59 @@ private struct AEMPSMedicationDetailView: View {
         value ? L10n.tr("aemps_yes") : L10n.tr("aemps_no")
     }
 
+    private var additionalInfoAvailable: Bool {
+        guard let detail else { return false }
+        return detail.substitutableByGeneric != nil ||
+            normalized(detail.cn) != nil ||
+            statusText != nil ||
+            normalized(detail.dosis) != nil ||
+            normalized(detail.simplifiedPharmaceuticalForm) != nil ||
+            routesText != nil ||
+            excipientsText != nil ||
+            !documentItems.isEmpty ||
+            atcText != nil
+    }
+
+    private var statusText: String? {
+        guard let detail else { return nil }
+        let parts = [
+            detail.statusAuthorizedAt.map { String(format: L10n.tr("aemps_status_auth_format"), Fmt.dayMedium($0)) },
+            detail.statusRevisionAt.map { String(format: L10n.tr("aemps_status_rev_format"), Fmt.dayMedium($0)) }
+        ].compactMap { $0 }
+        guard !parts.isEmpty else { return nil }
+        return parts.joined(separator: " · ")
+    }
+
+    private var routesText: String? {
+        guard let detail, !detail.administrationRoutes.isEmpty else { return nil }
+        return detail.administrationRoutes.joined(separator: ", ")
+    }
+
+    private var excipientsText: String? {
+        guard let detail, !detail.excipients.isEmpty else { return nil }
+        return detail.excipients.joined(separator: ", ")
+    }
+
+    private var atcText: String? {
+        guard let detail, !detail.atc.isEmpty else { return nil }
+        return detail.atc.joined(separator: "\n")
+    }
+
+    private var documentItems: [(title: String, url: URL)] {
+        guard let detail else { return [] }
+        var items: [(title: String, url: URL)] = []
+        if let ft = detail.technicalSheetURL {
+            items.append((title: L10n.tr("aemps_document_technical_sheet"), url: ft))
+        }
+        if let leaflet = detail.prospectoURL {
+            items.append((title: L10n.tr("aemps_document_leaflet"), url: leaflet))
+        }
+        if let report = detail.reportAndRisksURL {
+            items.append((title: L10n.tr("aemps_document_report_risks"), url: report))
+        }
+        return items
+    }
+
     private func loadDetailIfNeeded() {
         guard !suggestion.nregistro.isEmpty else { return }
         isLoadingDetail = true
@@ -330,6 +473,36 @@ private struct AEMPSMedicationDetailView: View {
                 }
                 isLoadingDetail = false
             }
+        }
+    }
+
+}
+
+private struct AEMPSProspectoScreen: View {
+    let url: URL
+
+    var body: some View {
+        AEMPSProspectoWebView(url: url)
+            .navigationTitle(L10n.tr("official_info_leaflet_button"))
+            .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct AEMPSProspectoWebView: UIViewRepresentable {
+    let url: URL
+
+    func makeUIView(context: Context) -> WKWebView {
+        let web = WKWebView(frame: .zero)
+        web.allowsBackForwardNavigationGestures = true
+        web.backgroundColor = .systemBackground
+        web.scrollView.backgroundColor = .systemBackground
+        return web
+    }
+
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        if webView.url != url {
+            let request = URLRequest(url: url, cachePolicy: .useProtocolCachePolicy, timeoutInterval: 30)
+            webView.load(request)
         }
     }
 }

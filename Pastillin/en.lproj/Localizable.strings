@@ -4,7 +4,7 @@
 
 "tab_today" = "Today";
 "tab_calendar" = "Calendar";
-"tab_medications" = "Medications";
+"tab_medications" = "Cabinet";
 "tab_not_taken" = "Missed";
 "tab_settings" = "Settings";
 
@@ -30,7 +30,7 @@
 
 "calendar_title" = "Calendar";
 
-"medications_title" = "Medications";
+"medications_title" = "Cabinet";
 "medications_section_scheduled" = "Scheduled treatments";
 "medications_section_occasional" = "Occasional use";
 "medication_add_type_title" = "Medication type";
@@ -45,6 +45,8 @@
 "summary_end_line_format" = "End %@";
 "summary_occasional_date_line_format" = "Date %@";
 "summary_chronic" = "Chronic";
+"summary_no_schedule" = "No schedule";
+"summary_no_date" = "No date";
 
 "unit_day_one" = "day";
 "unit_day_other" = "days";
@@ -76,6 +78,7 @@
 "occasional_taken_time" = "Taken time";
 "occasional_reminder_toggle" = "Enable reminder";
 "occasional_reminder_time" = "Reminder time";
+"occasional_section_intakes" = "Intakes";
 "edit_section_history_format" = "History (last %d)";
 "edit_title_new" = "New medication";
 "edit_title_new_occasional" = "New occasional-use medication";
@@ -85,6 +88,11 @@
 "edit_delete_message" = "This action will also remove its history.";
 "edit_delete_confirm" = "Delete";
 "button_cancel" = "Cancel";
+"button_clear" = "Clear";
+"save_add_to_cart_prompt_title" = "Add to cart";
+"save_add_to_cart_prompt_message" = "Do you want to add this medication to the shopping list?";
+"save_add_to_cart_yes" = "Yes, add";
+"save_add_to_cart_no" = "No, save without adding";
 "button_save" = "Save";
 "button_edit" = "Edit";
 
@@ -94,10 +102,12 @@
 "history_action_picker" = "Action";
 "history_action_change_time" = "Change time";
 "history_action_save_time" = "Save time";
+"history_action_save_datetime" = "Save date and time";
 "history_action_delete" = "Delete intake";
 "history_action_apply" = "Apply";
 "history_edit_time_title" = "Edit time";
 "history_edit_time_picker" = "Taken time";
+"history_edit_datetime_picker" = "Taken date and time";
 "history_delete_title" = "Delete intake";
 "history_delete_message" = "This intake will be removed from history.";
 "history_delete_confirm" = "Delete";
@@ -169,6 +179,7 @@
 "photo_empty" = "No photo";
 "photo_pick" = "Choose from library";
 "photo_take" = "Take photo";
+"photo_view" = "View photo";
 "photo_remove" = "Remove photo";
 
 "photo_camera_unavailable_title" = "Camera unavailable";
@@ -183,34 +194,41 @@
 "settings_open_help" = "View app help";
 
 "help_title" = "Help";
-"help_intro" = "This app helps you organize your medicines, mark intakes, and consult official information (CIMA-AEMPS). It is designed to be simple and easy to use.";
+"help_intro" = "This app helps you organize treatments in Today, Calendar, and Cabinet, mark intakes, manage pending doses, prepare a shopping list, and check official AEMPS information.";
 
 "help_section_tabs" = "Sections";
 "help_tab_today_title" = "Today";
-"help_tab_today_text" = "Here you can see today's medicines with each medication image (custom or default). You can mark Taken/Not taken, open detail, and add occasional intakes from the + button.";
+"help_tab_today_text" = "Here you can see today's medicines. You can mark Taken/Not taken, open details, add medicines with +, and see notices for pending doses and medicines that are close to running out.";
 "help_tab_calendar_title" = "Calendar";
-"help_tab_calendar_text" = "Here you can check any day: past, today, or future. Tap a day to see its medicine list and open detail with photo and status.";
-"help_tab_medications_title" = "Medications";
-"help_tab_medications_text" = "Here you create, edit, and delete medicines. You can also change photo, notes, and dates, mark the treatment as Chronic, and set End day (Included) when it is not chronic.";
+"help_tab_calendar_text" = "Here you can check any day: past, today, or future. On past days and today, in edit mode you can change intake status and delete an intake by swiping left (with confirmation). Tapping a row opens detail.";
+"help_tab_medications_title" = "Cabinet";
+"help_tab_medications_text" = "Here you create, edit, and delete medicines. Occasional-use items are grouped by name into one row and, in detail, you get an Intakes section with editable date and time for each intake. You can also manage photo, notes, and cart.";
+"help_tab_pending_title" = "Pending";
+"help_tab_pending_text" = "Here you see past missed intakes. Only the latest pending intake per medication is shown, and it is hidden if that medication has a later intake marked as taken.";
 "help_tab_settings_title" = "Settings";
-"help_tab_settings_text" = "Here you can enable up to 3 daily reminders, configure their time, generate the PDF report, manage backups, and open Legal notice / Privacy.";
+"help_tab_settings_text" = "Here you can enable up to 3 daily reminders, configure their times, manage AEMPS integration, generate PDF reports, and create/restore backups. When generating a backup, the share/save dialog opens directly.";
 
 "help_section_flows" = "Main steps";
 "help_flow_create_scheduled_title" = "Create a scheduled medicine";
-"help_flow_create_scheduled_text" = "Go to Medications, tap +, choose Scheduled medication, fill in the data, and tap Save. If you do not choose a photo, a default image is shown by medication type.";
+"help_flow_create_scheduled_text" = "Go to Cabinet, tap +, choose Scheduled medication, fill in the data, and tap Save. When saving a new medication, the app asks whether to add it to the shopping list.";
 "help_flow_create_occasional_title" = "Create an occasional-use medicine";
-"help_flow_create_occasional_text" = "You can create it from Today, Calendar, or Medications using the + button. If you create it from Today, you can set intake time (current time by default).";
+"help_flow_create_occasional_text" = "You can create it from Today, Calendar, or Cabinet using the + button. In Cabinet it is grouped by name, and in detail you use the Intakes section to edit each intake date and time.";
 "help_flow_mark_title" = "Mark an intake";
-"help_flow_mark_text" = "In Today (or in the selected calendar day), tap the status button to switch between Taken and Not taken. The button is red for Not taken and blue for Taken.";
+"help_flow_mark_text" = "In Today and in Calendar day detail, you can switch between Taken and Not taken. In Calendar, when editing a past day or today, you can also change status directly from the list.";
 "help_flow_remove_day_title" = "Remove one day intake";
 "help_flow_remove_day_text" = "Open detail and tap Remove for this day. Only that day is removed.";
 "help_flow_remove_all_title" = "Delete a full medicine";
-"help_flow_remove_all_text" = "Do it from Medications, opening detail and tapping Delete medication.";
+"help_flow_remove_all_text" = "Do it from Cabinet, opening detail and tapping Delete medication.";
+"help_flow_cart_title" = "Use the shopping list";
+"help_flow_cart_text" = "Tap the cart on a medication to add or remove it from the list. In the cart, you can reorder rows, set remaining doses (including 0), see Out of stock when applicable, mark Purchased, and share the list.";
+"help_flow_aemps_search_title" = "Search AEMPS and open leaflet";
+"help_flow_aemps_search_text" = "From Settings > Search in AEMPS, you can search by name, active ingredient, or registration number, clear the search field, apply filters, view official data, and add to the cabinet.";
 
 "help_section_notes" = "Useful notes";
 "help_note_time" = "In Settings, you can configure up to 3 daily reminders and set their times.";
 "help_note_future" = "Future-date medicines cannot be marked as taken.";
-"help_note_report" = "The PDF report is generated from Settings, in the Medical report section. You can also enable/disable the official AEMPS integration and open the leaflet when available.";
+"help_note_report" = "The PDF report is generated from Settings. For backups, after generating one, the share/save dialog opens directly.";
+"help_note_disclaimer_cart" = "The shopping list does not buy medications inside the app; it is only a reminder.";
 "help_note_mac" = "There is a MAC version of the app you can use if you prefer managing it with keyboard and mouse. You can later import your data to that version (or vice versa) using the Backup features available in Settings.";
 
 "autocomplete_loading" = "Searching medications...";
@@ -219,6 +237,7 @@
 "official_info_full_name" = "Full name";
 "official_info_active_ingredient" = "Active ingredient";
 "official_info_laboratory" = "Laboratory";
+"official_info_cn" = "National code (CN)";
 "official_info_source" = "Source";
 "official_info_source_value" = "CIMA (AEMPS)";
 "official_info_leaflet_button" = "View official leaflet";
@@ -245,11 +264,26 @@
 "aemps_search_results" = "Results";
 "aemps_search_results_hint" = "Run a search to see medications.";
 "aemps_registration_format" = "Registration no.: %@";
-"aemps_add_as_medication" = "Add as medication";
+"aemps_add_as_medication" = "Add to cabinet";
+"aemps_add_to_cart" = "Add to cart";
 "aemps_prescription_label" = "Classification";
 "aemps_requires_prescription" = "Requires prescription";
 "aemps_is_authorized" = "Authorized";
 "aemps_is_commercialized" = "Commercialized";
+"aemps_additional_info_section" = "Additional information";
+"aemps_generic_substitutable" = "Substitutable by generic";
+"aemps_status" = "Status";
+"aemps_status_auth_format" = "Authorized: %@";
+"aemps_status_rev_format" = "Revision: %@";
+"aemps_excipients" = "Excipients";
+"aemps_dose" = "Dose";
+"aemps_pharma_form_simple" = "Simplified pharmaceutical form";
+"aemps_routes" = "Administration routes";
+"aemps_documents" = "Documents";
+"aemps_document_technical_sheet" = "Technical sheet";
+"aemps_document_leaflet" = "Leaflet";
+"aemps_document_report_risks" = "Report and risks";
+"aemps_atc" = "ATC";
 "aemps_yes" = "Yes";
 "aemps_no" = "No";
 "settings_section_backup" = "Backup";
@@ -303,3 +337,30 @@
 "legal_disclaimer_privacy_point_2" = "Medication usage data is stored locally on your device.";
 "legal_disclaimer_privacy_point_3" = "No information is sent to developer-owned servers or used for commercial purposes.";
 "legal_disclaimer_privacy_point_4" = "Data is only sent/received to query the public CIMA-AEMPS API (public body), exclusively to obtain medication information.";
+"cart_title" = "Shopping List";
+"cart_open" = "Open shopping list";
+"cart_empty" = "You have no medications in the shopping list.";
+"cart_add" = "Buy";
+"cart_already_added" = "Already in shopping list";
+"cart_expected_end_format" = "Expected to run out: %@";
+"cart_expected_end_unspecified" = "No end date";
+"cart_date_picker" = "Run out date";
+"cart_set_date" = "Set end date";
+"cart_clear_date" = "Clear date";
+"cart_mark_purchased" = "Purchased";
+"today_shopping_notice" = "You have medications to buy";
+"cart_disclaimer_title" = "Important notice";
+"cart_disclaimer_message" = "This app does NOT sell medications. The shopping list is only a reminder to indicate that you need to buy a medication or that you are running low on stock.";
+"cart_disclaimer_understood" = "Understood";
+"cart_remove_item" = "Remove from list";
+"cart_share_button" = "Share list";
+"cart_share_intro" = "I need these medications:";
+"cart_share_item_with_date_format" = "- %@ (runs out: %@)";
+"cart_remaining_doses" = "Remaining doses";
+"cart_remaining_doses_placeholder" = "e.g. 12";
+"cart_clear_remaining_doses" = "Clear doses";
+"cart_expected_end_unknown" = "No run-out estimate";
+"cart_expected_end_out_of_stock" = "Out of stock";
+"today_cart_pending_purchase" = "Pending purchase";
+"today_cart_runs_out_format" = "Will run out on %@";
+"today_shopping_notice" = "You have medicines that are close to running out";

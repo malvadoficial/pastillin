@@ -13,9 +13,13 @@ struct TodayView: View {
     @Query private var medications: [Medication]
     @Query private var logs: [IntakeLog]
     @AppStorage("selectedTab") private var selectedTab: AppTab = .today
+    @AppStorage("openShoppingCartFromToday") private var openShoppingCartFromToday: Bool = false
+    @AppStorage("shoppingCartDisclaimerShown") private var shoppingCartDisclaimerShown: Bool = false
 
     @State private var rows: [TodayRow] = []
     @State private var pendingCount: Int = 0
+    @State private var showShoppingCart = false
+    @State private var showShoppingDisclaimerAlert = false
     @State private var selected: SelectedWrapper? = nil
     @State private var showingAddTypeDialog = false
     @State private var addMode: TodayAddMode? = nil
@@ -32,6 +36,9 @@ struct TodayView: View {
     }
     private var shouldShowGettingStartedOverlay: Bool {
         isFirstRunOrCleanState && rows.isEmpty && !showingAddTypeDialog && !didDismissGettingStartedOverlay
+    }
+    private var shoppingCartCount: Int {
+        medications.filter { $0.inShoppingCart }.count
     }
 
     var body: some View {
@@ -50,6 +57,20 @@ struct TodayView: View {
                             Text(String(format: L10n.tr("today_pending_notice_format"), pendingCount))
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(AppTheme.brandRed)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.vertical, 2)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    if shoppingCartCount > 0 {
+                        Button {
+                            openShoppingCartFromToday = true
+                            selectedTab = .medications
+                        } label: {
+                            Text(L10n.tr("today_shopping_notice"))
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(AppTheme.brandYellow)
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .padding(.vertical, 2)
                         }
@@ -106,6 +127,18 @@ struct TodayView: View {
                                         .font(.subheadline)
                                         .foregroundStyle(.secondary)
                                 }
+
+                                if row.medication.inShoppingCart {
+                                    if let runOutDate = row.medication.estimatedRunOutDate() {
+                                        Text(String(format: L10n.tr("today_cart_runs_out_format"), Fmt.dayMedium(runOutDate)))
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(AppTheme.brandYellow)
+                                    } else {
+                                        Text(L10n.tr("today_cart_pending_purchase"))
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(AppTheme.brandYellow)
+                                    }
+                                }
                             }
 
                             Spacer()
@@ -143,7 +176,27 @@ struct TodayView: View {
                         color: AppTheme.brandBlue
                     )
                 }
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        selectedTab = .noTaken
+                    } label: {
+                        PendingIntakesIconView(count: pendingCount)
+                    }
+                    .foregroundStyle(AppTheme.brandBlue)
+                    .accessibilityLabel(L10n.tr("tab_not_taken"))
+                }
                 ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button {
+                        if shoppingCartDisclaimerShown {
+                            showShoppingCart = true
+                        } else {
+                            showShoppingDisclaimerAlert = true
+                        }
+                    } label: {
+                        ShoppingCartIconView(count: shoppingCartCount)
+                    }
+                    .foregroundStyle(AppTheme.brandBlue)
+
                     Button {
                         showingAddTypeDialog = true
                     } label: {
@@ -251,6 +304,19 @@ struct TodayView: View {
                         }
                 }
             }
+            .sheet(isPresented: $showShoppingCart) {
+                NavigationStack {
+                    ShoppingCartView()
+                }
+            }
+            .alert(L10n.tr("cart_disclaimer_title"), isPresented: $showShoppingDisclaimerAlert) {
+                Button(L10n.tr("cart_disclaimer_understood")) {
+                    shoppingCartDisclaimerShown = true
+                    showShoppingCart = true
+                }
+            } message: {
+                Text(L10n.tr("cart_disclaimer_message"))
+            }
         }
     }
 
@@ -325,73 +391,15 @@ struct TodayView: View {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
         let start = cal.date(byAdding: .day, value: -29, to: today) ?? today
-
         try? LogService.ensureLogs(from: start, to: today, modelContext: modelContext)
 
-        let medsByID = Dictionary(uniqueKeysWithValues: medications.map { ($0.id, $0) })
-        let missedRows: [(medication: Medication, log: IntakeLog)] = logs.compactMap { log in
-            let dayKey = cal.startOfDay(for: log.dateKey)
-            guard dayKey < today else { return nil }
-            guard dayKey >= start else { return nil }
-            guard !log.isTaken else { return nil }
-            guard let med = medsByID[log.medicationID] else { return nil }
-            guard med.kind == .scheduled else { return nil }
-            guard isEligibleForPending(med) else { return nil }
-            return (med, log)
-        }
-
-        var latestPendingByMedication: [UUID: IntakeLog] = [:]
-        for row in missedRows {
-            let medID = row.medication.id
-            if let existing = latestPendingByMedication[medID] {
-                if row.log.dateKey > existing.dateKey {
-                    latestPendingByMedication[medID] = row.log
-                }
-            } else {
-                latestPendingByMedication[medID] = row.log
-            }
-        }
-
-        let validMedicationIDs = latestPendingByMedication.compactMap { medID, latestLog -> UUID? in
-            let latestDay = cal.startOfDay(for: latestLog.dateKey)
-            let hasLaterTaken = logs.contains { log in
-                guard log.medicationID == medID else { return false }
-                guard log.isTaken else { return false }
-                let candidateDay = cal.startOfDay(for: log.dateKey)
-                return candidateDay > latestDay && candidateDay <= today
-            }
-            return hasLaterTaken ? nil : medID
-        }
-
-        pendingCount = Set(validMedicationIDs).count
-    }
-
-    private func isEligibleForPending(_ medication: Medication) -> Bool {
-        guard medication.repeatUnit != .day || medication.interval > 1 else {
-            return false
-        }
-
-        guard medication.kind == .scheduled else {
-            return false
-        }
-
-        guard let endDate = medication.endDate else {
-            return true
-        }
-
-        let cal = Calendar.current
-        let startKey = cal.startOfDay(for: medication.startDate)
-        let endKey = cal.startOfDay(for: endDate)
-        guard endKey > startKey else { return false }
-
-        switch medication.repeatUnit {
-        case .day:
-            let diff = cal.dateComponents([.day], from: startKey, to: endKey).day ?? 0
-            return diff >= medication.interval
-        case .month:
-            guard let next = cal.date(byAdding: .month, value: medication.interval, to: startKey) else { return false }
-            return cal.startOfDay(for: next) <= endKey
-        }
+        pendingCount = PendingIntakeService.pendingMedicationCount(
+            medications: medications,
+            logs: logs,
+            referenceDate: today,
+            lookbackDays: 30,
+            calendar: cal
+        )
     }
 
     @ViewBuilder

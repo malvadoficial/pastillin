@@ -30,12 +30,15 @@ struct NoTakenView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var medications: [Medication]
     @Query private var logs: [IntakeLog]
+    @AppStorage("shoppingCartDisclaimerShown") private var shoppingCartDisclaimerShown: Bool = false
 
     @State private var rows: [MissedIntakeRow] = []
     @State private var selectedRow: MissedIntakeRow? = nil
     @State private var pendingMoveRow: MissedIntakeRow? = nil
     @State private var pendingTakenDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var selectedRange: MissedRange = .days30
+    @State private var showShoppingCart = false
+    @State private var showShoppingDisclaimerAlert = false
 
     var body: some View {
         NavigationStack {
@@ -96,6 +99,17 @@ struct NoTakenView: View {
                         color: AppTheme.brandRed
                     )
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        if shoppingCartDisclaimerShown {
+                            showShoppingCart = true
+                        } else {
+                            showShoppingDisclaimerAlert = true
+                        }
+                    } label: {
+                        ShoppingCartIconView(count: shoppingCartCount)
+                    }
+                }
             }
             .overlay {
                 if let row = selectedRow {
@@ -142,7 +156,24 @@ struct NoTakenView: View {
             .onChange(of: medications.count) { _, _ in
                 reloadRows()
             }
+            .sheet(isPresented: $showShoppingCart) {
+                NavigationStack {
+                    ShoppingCartView()
+                }
+            }
+            .alert(L10n.tr("cart_disclaimer_title"), isPresented: $showShoppingDisclaimerAlert) {
+                Button(L10n.tr("cart_disclaimer_understood")) {
+                    shoppingCartDisclaimerShown = true
+                    showShoppingCart = true
+                }
+            } message: {
+                Text(L10n.tr("cart_disclaimer_message"))
+            }
         }
+    }
+
+    private var shoppingCartCount: Int {
+        medications.filter { $0.inShoppingCart }.count
     }
 
     private func refreshData() {
@@ -202,6 +233,10 @@ struct NoTakenView: View {
     }
 
     private func isEligibleMedication(_ medication: Medication) -> Bool {
+        guard let configuredStartDate = medication.startDateRaw else {
+            return false
+        }
+
         guard medication.repeatUnit != .day || medication.interval > 1 else {
             return false
         }
@@ -215,7 +250,7 @@ struct NoTakenView: View {
         }
 
         let cal = Calendar.current
-        let startKey = cal.startOfDay(for: medication.startDate)
+        let startKey = cal.startOfDay(for: configuredStartDate)
         let endKey = cal.startOfDay(for: endDate)
 
         guard endKey > startKey else { return false }

@@ -13,6 +13,8 @@ struct CalendarView: View {
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Query private var medications: [Medication]
     @Query private var logs: [IntakeLog]
+    @AppStorage("selectedTab") private var selectedTab: AppTab = .calendar
+    @AppStorage("shoppingCartDisclaimerShown") private var shoppingCartDisclaimerShown: Bool = false
 
     @State private var monthBase: Date = Date()
     @State private var selectedDay: Date? = nil
@@ -20,6 +22,9 @@ struct CalendarView: View {
     @State private var dayEditorTarget: DayEditorWrapper? = nil
     @State private var showingAddTypeDialog = false
     @State private var addMode: CalendarAddMode? = nil
+    @State private var showShoppingCart = false
+    @State private var showShoppingDisclaimerAlert = false
+    @State private var pendingCount: Int = 0
     private var isCompactLayout: Bool { verticalSizeClass == .compact }
     private var rootSpacing: CGFloat { isCompactLayout ? 4 : 8 }
     private var gridSpacing: CGFloat { isCompactLayout ? 4 : 8 }
@@ -70,7 +75,7 @@ struct CalendarView: View {
                                     .frame(maxWidth: .infinity, minHeight: dayCellMinHeight)
                                     .padding(.vertical, isCompactLayout ? 1 : 3)
                                     .padding(.horizontal, 4)
-                                    .background(.thinMaterial)
+                                    .background(dayCellBackground(isSelected: isSelected, isToday: today))
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 12)
                                             .stroke(
@@ -110,18 +115,44 @@ struct CalendarView: View {
                         )
                     }
                 }
-                if selectedDayHasRows {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button(L10n.tr("button_edit")) {
+                ToolbarItemGroup(placement: .topBarLeading) {
+                    if selectedDayHasRows {
+                        Button {
                             let target = selectedDay ?? Calendar.current.startOfDay(for: Date())
                             dayEditorTarget = DayEditorWrapper(date: target)
+                        } label: {
+                            Image(systemName: "pencil")
                         }
                         .foregroundStyle(AppTheme.brandRed)
+                        .accessibilityLabel(L10n.tr("button_edit"))
                         .disabled(showingAddTypeDialog)
                         .opacity(showingAddTypeDialog ? 0.35 : 1)
                     }
+
+                    Button {
+                        selectedTab = .noTaken
+                    } label: {
+                        PendingIntakesIconView(count: pendingCount)
+                    }
+                    .foregroundStyle(AppTheme.brandRed)
+                    .accessibilityLabel(L10n.tr("tab_not_taken"))
+                    .disabled(showingAddTypeDialog)
+                    .opacity(showingAddTypeDialog ? 0.35 : 1)
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button {
+                        if shoppingCartDisclaimerShown {
+                            showShoppingCart = true
+                        } else {
+                            showShoppingDisclaimerAlert = true
+                        }
+                    } label: {
+                        ShoppingCartIconView(count: shoppingCartCount)
+                    }
+                    .foregroundStyle(AppTheme.brandRed)
+                    .disabled(showingAddTypeDialog)
+                    .opacity(showingAddTypeDialog ? 0.35 : 1)
+
                     Button {
                         showingAddTypeDialog = true
                     } label: {
@@ -167,17 +198,37 @@ struct CalendarView: View {
                     initialStartDate: target
                 )
             }
+            .sheet(isPresented: $showShoppingCart) {
+                NavigationStack {
+                    ShoppingCartView()
+                }
+            }
+            .alert(L10n.tr("cart_disclaimer_title"), isPresented: $showShoppingDisclaimerAlert) {
+                Button(L10n.tr("cart_disclaimer_understood")) {
+                    shoppingCartDisclaimerShown = true
+                    showShoppingCart = true
+                }
+            } message: {
+                Text(L10n.tr("cart_disclaimer_message"))
+            }
             .onAppear {
                 // Al menos crea logs para hoy (el resto se crea al entrar en cada día)
                 try? LogService.ensureLogs(for: Date(), modelContext: modelContext)
                 if selectedDay == nil {
                     selectedDay = Calendar.current.startOfDay(for: Date())
                 }
+                refreshPendingCount()
             }
             .onChange(of: selectedDay) { _, newValue in
                 if let d = newValue {
                     try? LogService.ensureLogs(for: d, modelContext: modelContext)
                 }
+            }
+            .onChange(of: logs.count) { _, _ in
+                refreshPendingCount()
+            }
+            .onChange(of: medications.count) { _, _ in
+                refreshPendingCount()
             }
             .onReceive(NotificationCenter.default.publisher(for: .calendarJumpToToday)) { _ in
                 monthBase = Date()
@@ -186,6 +237,17 @@ struct CalendarView: View {
                 try? LogService.ensureLogs(for: today, modelContext: modelContext)
             }
         }
+    }
+
+    private var shoppingCartCount: Int {
+        medications.filter { $0.inShoppingCart }.count
+    }
+
+    private func refreshPendingCount() {
+        pendingCount = PendingIntakeService.pendingMedicationCount(
+            medications: medications,
+            logs: logs
+        )
     }
 
     private var header: some View {
@@ -268,6 +330,28 @@ struct CalendarView: View {
 
     private func isToday(_ day: Date) -> Bool {
         Calendar.current.isDateInToday(day)
+    }
+
+    @ViewBuilder
+    private func dayCellBackground(isSelected: Bool, isToday: Bool) -> some View {
+        if isSelected {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(AppTheme.brandBlue.opacity(0.24))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(.thinMaterial.opacity(0.35))
+                }
+        } else if isToday {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(AppTheme.brandRed.opacity(0.18))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(.thinMaterial.opacity(0.3))
+                }
+        } else {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(.thinMaterial)
+        }
     }
 
     // MARK: - Month grid helpers

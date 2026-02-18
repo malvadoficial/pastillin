@@ -23,6 +23,10 @@ struct HelpView: View {
                     text: L10n.tr("help_tab_medications_text")
                 )
                 helpRow(
+                    title: L10n.tr("help_tab_pending_title"),
+                    text: L10n.tr("help_tab_pending_text")
+                )
+                helpRow(
                     title: L10n.tr("help_tab_settings_title"),
                     text: L10n.tr("help_tab_settings_text")
                 )
@@ -34,12 +38,15 @@ struct HelpView: View {
                 helpStep(title: L10n.tr("help_flow_mark_title"), text: L10n.tr("help_flow_mark_text"))
                 helpStep(title: L10n.tr("help_flow_remove_day_title"), text: L10n.tr("help_flow_remove_day_text"))
                 helpStep(title: L10n.tr("help_flow_remove_all_title"), text: L10n.tr("help_flow_remove_all_text"))
+                helpStep(title: L10n.tr("help_flow_cart_title"), text: L10n.tr("help_flow_cart_text"))
+                helpStep(title: L10n.tr("help_flow_aemps_search_title"), text: L10n.tr("help_flow_aemps_search_text"))
             }
 
             Section(L10n.tr("help_section_notes")) {
                 Text(L10n.tr("help_note_time"))
                 Text(L10n.tr("help_note_future"))
                 Text(L10n.tr("help_note_report"))
+                Text(L10n.tr("help_note_disclaimer_cart"))
                 Text(L10n.tr("help_note_mac"))
             }
         }

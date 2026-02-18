@@ -85,7 +85,6 @@ struct RootView: View {
             bottomBarButton(.today, title: L10n.tr("tab_today"), systemImage: "checklist")
             bottomBarButton(.calendar, title: L10n.tr("tab_calendar"), systemImage: "calendar")
             bottomBarButton(.medications, title: L10n.tr("tab_medications"), systemImage: "pills")
-            bottomBarButton(.noTaken, title: L10n.tr("tab_not_taken"), systemImage: "xmark.circle")
             bottomBarButton(.settings, title: L10n.tr("tab_settings"), systemImage: "gearshape")
         }
         .padding(.horizontal, 10)

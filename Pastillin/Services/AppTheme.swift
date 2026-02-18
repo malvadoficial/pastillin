@@ -2,9 +2,10 @@ import SwiftUI
 
 enum AppTheme {
     // Colores corporativos principales (80%)
-    static let brandBlue = Color(red: 0.11, green: 0.53, blue: 0.89)
-    static let brandRed = Color(red: 0.90, green: 0.22, blue: 0.21)
-    static let brandYellow = Color(red: 0.98, green: 0.75, blue: 0.18)
+    // Tonos pastel inspirados en el nuevo icono
+    static let brandBlue = Color(red: 0.43, green: 0.74, blue: 0.79)
+    static let brandRed = Color(red: 0.87, green: 0.52, blue: 0.61)
+    static let brandYellow = Color(red: 0.90, green: 0.76, blue: 0.34)
 
     // Colores de apoyo (20%)
     static let supportWhite = Color.white

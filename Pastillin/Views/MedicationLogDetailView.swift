@@ -12,22 +12,29 @@ import UIKit
 struct MedicationLogDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Query private var medications: [Medication]
     @Query private var allLogs: [IntakeLog]
     @Query private var appSettings: [AppSettings]
+    @AppStorage("shoppingCartDisclaimerShown") private var shoppingCartDisclaimerShown: Bool = false
 
     let medication: Medication
     let dayKey: Date              // startOfDay del día seleccionado
     @Bindable var log: IntakeLog  // el log de ese día para esa medicina
     @State private var showRemoveForDayConfirmation = false
     @State private var showDeleteOccasionalConfirmation = false
+    @State private var showShoppingCart = false
+    @State private var showShoppingDisclaimerAlert = false
+    @State private var pendingAddToCart = false
+    @State private var pendingOpenCart = false
     private var officialFullName: String? { normalized(medication.cimaNombreCompleto) }
     private var officialActiveIngredient: String? { normalized(medication.cimaPrincipioActivo) }
     private var officialLaboratory: String? { normalized(medication.cimaLaboratorio) }
+    private var officialCN: String? { normalized(medication.cimaCN) }
     private var officialProspectoURL: URL? {
         resolvedProspectoURL(from: medication.cimaProspectoURL)
     }
     private var hasOfficialInfo: Bool {
-        officialFullName != nil || officialActiveIngredient != nil || officialLaboratory != nil || officialProspectoURL != nil || normalized(medication.cimaNRegistro) != nil
+        officialFullName != nil || officialActiveIngredient != nil || officialLaboratory != nil || officialCN != nil || officialProspectoURL != nil || normalized(medication.cimaNRegistro) != nil
     }
     private var isAEMPSIntegrationEnabled: Bool {
         appSettings.first?.medicationAutocompleteEnabled ?? true
@@ -88,6 +95,16 @@ struct MedicationLogDetailView: View {
                             }
                         }
 
+                        if let cn = officialCN {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(L10n.tr("official_info_cn"))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(cn)
+                                    .font(.subheadline.weight(.semibold))
+                            }
+                        }
+
                         VStack(alignment: .leading, spacing: 2) {
                             Text(L10n.tr("official_info_source"))
                                 .font(.caption)
@@ -119,6 +136,18 @@ struct MedicationLogDetailView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(log.isTaken ? AppTheme.brandBlue : AppTheme.brandRed)
+                    }
+                }
+
+                Section {
+                    Button {
+                        requestAddToCart()
+                    } label: {
+                        Label(
+                            medication.inShoppingCart ? L10n.tr("cart_already_added") : L10n.tr("cart_add"),
+                            systemImage: medication.inShoppingCart ? "cart.fill" : "cart.badge.plus"
+                        )
+                        .frame(maxWidth: .infinity, alignment: .center)
                     }
                 }
 
@@ -161,6 +190,13 @@ struct MedicationLogDetailView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(L10n.tr("button_close")) { dismiss() }
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        requestCartOpen()
+                    } label: {
+                        ShoppingCartIconView(count: shoppingCartCount)
+                    }
+                }
             }
             .alert(L10n.tr("detail_remove_for_day_title"), isPresented: $showRemoveForDayConfirmation) {
                 Button(L10n.tr("button_cancel"), role: .cancel) {}
@@ -178,7 +214,70 @@ struct MedicationLogDetailView: View {
             } message: {
                 Text(L10n.tr("edit_delete_message"))
             }
+            .sheet(isPresented: $showShoppingCart) {
+                NavigationStack {
+                    ShoppingCartView()
+                }
+            }
+            .alert(L10n.tr("cart_disclaimer_title"), isPresented: $showShoppingDisclaimerAlert) {
+                Button(L10n.tr("cart_disclaimer_understood")) {
+                    shoppingCartDisclaimerShown = true
+                    runPendingCartAction()
+                }
+            } message: {
+                Text(L10n.tr("cart_disclaimer_message"))
+            }
         }
+    }
+
+    private var shoppingCartCount: Int {
+        medications.filter { $0.inShoppingCart }.count
+    }
+
+    private func requestCartOpen() {
+        if shoppingCartDisclaimerShown {
+            showShoppingCart = true
+            return
+        }
+        pendingOpenCart = true
+        pendingAddToCart = false
+        showShoppingDisclaimerAlert = true
+    }
+
+    private func requestAddToCart() {
+        if shoppingCartDisclaimerShown {
+            medication.inShoppingCart = true
+            if medication.shoppingCartSortOrder == nil {
+                medication.shoppingCartSortOrder = nextCartSortOrder
+            }
+            try? modelContext.save()
+            return
+        }
+        pendingAddToCart = true
+        pendingOpenCart = false
+        showShoppingDisclaimerAlert = true
+    }
+
+    private func runPendingCartAction() {
+        if pendingOpenCart {
+            showShoppingCart = true
+        } else if pendingAddToCart {
+            medication.inShoppingCart = true
+            if medication.shoppingCartSortOrder == nil {
+                medication.shoppingCartSortOrder = nextCartSortOrder
+            }
+            try? modelContext.save()
+        }
+        clearPendingCartAction()
+    }
+
+    private func clearPendingCartAction() {
+        pendingOpenCart = false
+        pendingAddToCart = false
+    }
+
+    private var nextCartSortOrder: Int {
+        (medications.compactMap { $0.shoppingCartSortOrder }.max() ?? -1) + 1
     }
 
     // MARK: - Bindings

@@ -31,7 +31,7 @@ enum BackupService {
                 kind: MedicationKind(rawValue: m.kindRaw ?? MedicationKind.scheduled.rawValue) ?? .scheduled,
                 repeatUnit: RepeatUnit(rawValue: m.repeatUnitRaw) ?? .day,
                 interval: m.interval,
-                startDate: m.startDate,
+                startDate: m.startDate ?? Date(),
                 endDate: m.endDate
             )
             med.id = m.id
@@ -43,11 +43,17 @@ enum BackupService {
             med.occasionalReminderMinute = m.occasionalReminderMinute
             med.skippedDateKeysRaw = m.skippedDateKeysRaw
             med.repeatUnitRaw = m.repeatUnitRaw
+            med.startDateRaw = m.startDate
             med.cimaNRegistro = m.cimaNRegistro
+            med.cimaCN = m.cimaCN
             med.cimaNombreCompleto = m.cimaNombreCompleto
             med.cimaPrincipioActivo = m.cimaPrincipioActivo
             med.cimaLaboratorio = m.cimaLaboratorio
             med.cimaProspectoURL = m.cimaProspectoURL
+            med.inShoppingCartRaw = m.inShoppingCartRaw
+            med.shoppingCartSortOrderRaw = m.shoppingCartSortOrderRaw
+            med.shoppingCartExpectedEndDate = m.shoppingCartExpectedEndDate
+            med.shoppingCartRemainingDosesRaw = m.shoppingCartRemainingDosesRaw
             modelContext.insert(med)
         }
 
@@ -120,13 +126,18 @@ enum BackupService {
                     skippedDateKeysRaw: $0.skippedDateKeysRaw,
                     repeatUnitRaw: $0.repeatUnitRaw,
                     interval: $0.interval,
-                    startDate: $0.startDate,
+                    startDate: $0.startDateRaw,
                     endDate: $0.endDate,
                     cimaNRegistro: $0.cimaNRegistro,
+                    cimaCN: $0.cimaCN,
                     cimaNombreCompleto: $0.cimaNombreCompleto,
                     cimaPrincipioActivo: $0.cimaPrincipioActivo,
                     cimaLaboratorio: $0.cimaLaboratorio,
-                    cimaProspectoURL: $0.cimaProspectoURL
+                    cimaProspectoURL: $0.cimaProspectoURL,
+                    inShoppingCartRaw: $0.inShoppingCartRaw,
+                    shoppingCartSortOrderRaw: $0.shoppingCartSortOrderRaw,
+                    shoppingCartExpectedEndDate: $0.shoppingCartExpectedEndDate,
+                    shoppingCartRemainingDosesRaw: $0.shoppingCartRemainingDosesRaw
                 )
             },
             logs: logs.map {
@@ -174,13 +185,18 @@ private struct BackupMedication: Codable {
     let skippedDateKeysRaw: [Double]?
     let repeatUnitRaw: Int
     let interval: Int
-    let startDate: Date
+    let startDate: Date?
     let endDate: Date?
     let cimaNRegistro: String?
+    let cimaCN: String?
     let cimaNombreCompleto: String?
     let cimaPrincipioActivo: String?
     let cimaLaboratorio: String?
     let cimaProspectoURL: String?
+    let inShoppingCartRaw: Bool?
+    let shoppingCartSortOrderRaw: Int?
+    let shoppingCartExpectedEndDate: Date?
+    let shoppingCartRemainingDosesRaw: Int?
 }
 
 private struct BackupLog: Codable {

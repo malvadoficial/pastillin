@@ -74,7 +74,9 @@ enum LogService {
         let dayOffset = cal.dateComponents([.day], from: selectedKey, to: takenOnKey).day ?? 0
         guard dayOffset > 0 else { return }
 
-        if let shiftedStart = cal.date(byAdding: .day, value: dayOffset, to: medication.startDate) {
+        guard let currentStartDate = medication.startDateRaw else { return }
+
+        if let shiftedStart = cal.date(byAdding: .day, value: dayOffset, to: currentStartDate) {
             medication.startDate = cal.startOfDay(for: shiftedStart)
         }
 

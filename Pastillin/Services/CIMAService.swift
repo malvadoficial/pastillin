@@ -34,12 +34,23 @@ struct CIMAMedicationDetail: Hashable {
     let nombreCompleto: String?
     let principioActivo: String?
     let laboratorio: String?
+    let cn: String?
     let prospectoURL: URL?
+    let technicalSheetURL: URL?
+    let reportAndRisksURL: URL?
     let imageURL: URL?
     let prescriptionLabel: String?
     let requiresPrescription: Bool?
     let isCommercialized: Bool?
     let isAuthorized: Bool?
+    let substitutableByGeneric: Bool?
+    let statusAuthorizedAt: Date?
+    let statusRevisionAt: Date?
+    let excipients: [String]
+    let dosis: String?
+    let simplifiedPharmaceuticalForm: String?
+    let administrationRoutes: [String]
+    let atc: [String]
 }
 
 enum CIMASearchField: Int, CaseIterable, Identifiable {
@@ -183,11 +194,27 @@ actor CIMAService {
         let principioActivo = Self.cleanOptionalText((json["pactivos"] as? String) ?? (json["principiosActivos"] as? String))
         let laboratorio = Self.cleanOptionalText((json["labtitular"] as? String) ?? (json["laboratorio"] as? String))
         let nombreCompleto = Self.cleanOptionalText(json["nombre"] as? String)
-        let prospectoURL = Self.findProspectoURL(in: json)
+        let cn = Self.cleanOptionalText(((json["presentaciones"] as? [[String: Any]])?.first?["cn"] as? String))
+        let technicalSheetURL = Self.findDocumentURL(in: json, type: 1)
+        let prospectoURL = Self.findDocumentURL(in: json, type: 2) ?? Self.findProspectoURL(in: json)
+        let reportAndRisksURL = Self.findDocumentURL(in: json, type: 3)
         let imageURL = Self.findMedicationImageURL(in: json)
         let prescriptionLabel = Self.cleanOptionalText(json["cpresc"] as? String)
         let requiresPrescription = json["receta"] as? Bool
         let isCommercialized = json["comerc"] as? Bool
+        let substitutableByGeneric: Bool? = {
+            guard let noSust = json["nosustituible"] as? [String: Any] else { return nil }
+            if let id = noSust["id"] as? Int { return id == 0 }
+            if let idNumber = noSust["id"] as? NSNumber { return idNumber.intValue == 0 }
+            return nil
+        }()
+        let statusAuthorizedAt = Self.parseStatusDate(in: json, key: "aut")
+        let statusRevisionAt = Self.parseStatusDate(in: json, key: "rev")
+        let excipients = Self.parseNamedItems(in: json["excipientes"], key: "nombre")
+        let dosis = Self.cleanOptionalText(json["dosis"] as? String)
+        let simplifiedPharmaceuticalForm = Self.cleanOptionalText((json["formaFarmaceuticaSimplificada"] as? [String: Any])?["nombre"] as? String)
+        let administrationRoutes = Self.parseNamedItems(in: json["viasAdministracion"], key: "nombre")
+        let atc = Self.parseATC(in: json["atcs"])
         let isAuthorized: Bool? = {
             guard let estado = json["estado"] as? [String: Any] else { return nil }
             if estado["aut"] is NSNumber || estado["aut"] is String {
@@ -199,12 +226,23 @@ actor CIMAService {
         if nombreCompleto == nil,
            principioActivo == nil,
            laboratorio == nil,
+           cn == nil,
            prospectoURL == nil,
+           technicalSheetURL == nil,
+           reportAndRisksURL == nil,
            imageURL == nil,
            prescriptionLabel == nil,
            requiresPrescription == nil,
            isCommercialized == nil,
-           isAuthorized == nil {
+           isAuthorized == nil,
+           substitutableByGeneric == nil,
+           statusAuthorizedAt == nil,
+           statusRevisionAt == nil,
+           excipients.isEmpty,
+           dosis == nil,
+           simplifiedPharmaceuticalForm == nil,
+           administrationRoutes.isEmpty,
+           atc.isEmpty {
             return nil
         }
 
@@ -212,12 +250,23 @@ actor CIMAService {
             nombreCompleto: nombreCompleto,
             principioActivo: principioActivo,
             laboratorio: laboratorio,
+            cn: cn,
             prospectoURL: prospectoURL,
+            technicalSheetURL: technicalSheetURL,
+            reportAndRisksURL: reportAndRisksURL,
             imageURL: imageURL,
             prescriptionLabel: prescriptionLabel,
             requiresPrescription: requiresPrescription,
             isCommercialized: isCommercialized,
-            isAuthorized: isAuthorized
+            isAuthorized: isAuthorized,
+            substitutableByGeneric: substitutableByGeneric,
+            statusAuthorizedAt: statusAuthorizedAt,
+            statusRevisionAt: statusRevisionAt,
+            excipients: excipients,
+            dosis: dosis,
+            simplifiedPharmaceuticalForm: simplifiedPharmaceuticalForm,
+            administrationRoutes: administrationRoutes,
+            atc: atc
         )
     }
 
@@ -368,6 +417,52 @@ actor CIMAService {
 
         if raw.hasPrefix("www.") || raw.hasPrefix("cima.aemps.es") {
             return URL(string: "https://\(raw)")
+        }
+        return nil
+    }
+
+    private static func parseStatusDate(in json: [String: Any], key: String) -> Date? {
+        guard let estado = json["estado"] as? [String: Any] else { return nil }
+        if let millis = estado[key] as? NSNumber {
+            return Date(timeIntervalSince1970: millis.doubleValue / 1000.0)
+        }
+        if let millisText = estado[key] as? String,
+           let millis = Double(millisText) {
+            return Date(timeIntervalSince1970: millis / 1000.0)
+        }
+        return nil
+    }
+
+    private static func parseNamedItems(in object: Any?, key: String) -> [String] {
+        guard let array = object as? [[String: Any]] else { return [] }
+        return array.compactMap { item in
+            cleanOptionalText(item[key] as? String)
+        }
+    }
+
+    private static func parseATC(in object: Any?) -> [String] {
+        guard let array = object as? [[String: Any]] else { return [] }
+        return array.compactMap { item in
+            let code = cleanOptionalText(item["codigo"] as? String)
+            let name = cleanOptionalText(item["nombre"] as? String)
+            if let code, let name { return "\(code) · \(name)" }
+            return code ?? name
+        }
+    }
+
+    private static func findDocumentURL(in object: Any, type: Int) -> URL? {
+        guard let dict = object as? [String: Any],
+              let docs = dict["docs"] as? [[String: Any]] else {
+            return nil
+        }
+        guard let doc = docs.first(where: { ($0["tipo"] as? Int) == type || ($0["tipo"] as? NSNumber)?.intValue == type }) else {
+            return nil
+        }
+        if let html = doc["urlHtml"] as? String, let url = parseWebURL(html) {
+            return url
+        }
+        if let pdf = doc["url"] as? String, let url = parseWebURL(pdf) {
+            return url
         }
         return nil
     }

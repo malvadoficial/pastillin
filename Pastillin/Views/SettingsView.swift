@@ -17,6 +17,7 @@ struct SettingsView: View {
     @State private var reportURL: URL? = nil
 
     @State private var backupURL: URL? = nil
+    @State private var showBackupShareSheet = false
     @State private var showingBackupImporter = false
     @State private var pendingRestoreURL: URL? = nil
     @State private var showRestoreConfirmation = false
@@ -131,12 +132,6 @@ struct SettingsView: View {
                         generateBackup()
                     }
 
-                    if let url = backupURL {
-                        ShareLink(item: url) {
-                            Text(L10n.tr("settings_button_share_backup"))
-                        }
-                    }
-
                     Button(L10n.tr("settings_button_restore_backup")) {
                         showingBackupImporter = true
                     }
@@ -239,6 +234,11 @@ struct SettingsView: View {
                 LegalDisclaimerView(isMandatory: true) {
                     legalDisclaimerAccepted = true
                     showLegalDisclaimerAfterDelete = false
+                }
+            }
+            .sheet(isPresented: $showBackupShareSheet) {
+                if let url = backupURL {
+                    ActivityShareSheet(activityItems: [url])
                 }
             }
         }
@@ -378,8 +378,10 @@ struct SettingsView: View {
         do {
             backupURL = try BackupService.generateBackup(modelContext: modelContext)
             errorText = nil
+            showBackupShareSheet = true
         } catch {
             backupURL = nil
+            showBackupShareSheet = false
             errorText = L10n.tr("error_generate_backup")
         }
     }
@@ -415,4 +417,14 @@ struct SettingsView: View {
             errorText = L10n.tr("error_delete_all_data")
         }
     }
+}
+
+private struct ActivityShareSheet: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }

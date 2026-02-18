@@ -31,10 +31,15 @@ final class Medication {
     var note: String?
     var isActive: Bool
     var cimaNRegistro: String? = nil
+    var cimaCN: String? = nil
     var cimaNombreCompleto: String? = nil
     var cimaPrincipioActivo: String? = nil
     var cimaLaboratorio: String? = nil
     var cimaProspectoURL: String? = nil
+    var inShoppingCartRaw: Bool?
+    var shoppingCartSortOrderRaw: Int?
+    var shoppingCartExpectedEndDate: Date?
+    var shoppingCartRemainingDosesRaw: Int?
 
     // Foto (opcional)
     var photoData: Data?
@@ -50,7 +55,7 @@ final class Medication {
     var skippedDateKeysRaw: [Double]?
     var repeatUnitRaw: Int
     var interval: Int                // 1 = cada día / cada mes
-    var startDate: Date              // ancla
+    var startDateRaw: Date?          // ancla (puede faltar en medicación inactiva)
     var endDate: Date?               // último día incluido
 
     init(
@@ -76,13 +81,26 @@ final class Medication {
         self.skippedDateKeysRaw = []
         self.repeatUnitRaw = repeatUnit.rawValue
         self.interval = max(1, interval)
-        self.startDate = startDate
+        self.startDateRaw = startDate
         self.endDate = endDate
+        self.inShoppingCartRaw = false
+        self.shoppingCartSortOrderRaw = nil
+        self.shoppingCartExpectedEndDate = nil
+        self.shoppingCartRemainingDosesRaw = nil
     }
 
     var repeatUnit: RepeatUnit {
         get { RepeatUnit(rawValue: repeatUnitRaw) ?? .day }
         set { repeatUnitRaw = newValue.rawValue }
+    }
+
+    var startDate: Date {
+        get { startDateRaw ?? Date() }
+        set { startDateRaw = newValue }
+    }
+
+    var hasConfiguredStartDate: Bool {
+        startDateRaw != nil
     }
 
     var kind: MedicationKind {
@@ -91,6 +109,53 @@ final class Medication {
             return MedicationKind(rawValue: raw) ?? .scheduled
         }
         set { kindRaw = newValue.rawValue }
+    }
+
+    var inShoppingCart: Bool {
+        get { inShoppingCartRaw ?? false }
+        set { inShoppingCartRaw = newValue }
+    }
+
+    var shoppingCartRemainingDoses: Int? {
+        get {
+            guard let value = shoppingCartRemainingDosesRaw else { return nil }
+            return value >= 0 ? value : nil
+        }
+        set {
+            if let newValue, newValue >= 0 {
+                shoppingCartRemainingDosesRaw = newValue
+            } else {
+                shoppingCartRemainingDosesRaw = nil
+            }
+        }
+    }
+
+    var shoppingCartSortOrder: Int? {
+        get { shoppingCartSortOrderRaw }
+        set { shoppingCartSortOrderRaw = newValue }
+    }
+
+    func estimatedRunOutDate(from referenceDate: Date = Date(), calendar: Calendar = .current) -> Date? {
+        guard inShoppingCart else { return nil }
+        guard kind == .scheduled else { return nil }
+        guard let remainingDoses = shoppingCartRemainingDoses, remainingDoses > 0 else { return nil }
+
+        var day = calendar.startOfDay(for: referenceDate)
+        var dosesLeft = remainingDoses
+        let maxIterations = 365 * 20
+
+        for _ in 0...maxIterations {
+            if isDue(on: day, calendar: calendar) {
+                dosesLeft -= 1
+                if dosesLeft <= 0 {
+                    return day
+                }
+            }
+            guard let nextDay = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+            day = nextDay
+        }
+
+        return nil
     }
 
     var occasionalReminderEnabled: Bool {
@@ -114,7 +179,8 @@ final class Medication {
     }
 
     func isDue(on dateKey: Date, calendar: Calendar = .current) -> Bool {
-        let startKey = calendar.startOfDay(for: startDate)
+        guard let configuredStartDate = startDateRaw else { return false }
+        let startKey = calendar.startOfDay(for: configuredStartDate)
         if dateKey < startKey { return false }
 
         if kind == .occasional {

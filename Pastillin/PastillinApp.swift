@@ -25,6 +25,7 @@ struct PastillinApp: App {
     var body: some Scene {
         WindowGroup {
             SplashGateView()
+                .tint(AppTheme.brandBlue)
         }
         .modelContainer(sharedModelContainer)
     }
