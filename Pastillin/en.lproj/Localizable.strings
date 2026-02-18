@@ -18,7 +18,7 @@
 "missed_range_30" = "1 m";
 "missed_range_90" = "3 m";
 "missed_range_180" = "6 m";
-"missed_empty" = "There are no missed intakes in this range.";
+"missed_empty" = "You don't have any overdue intakes for the selected range.";
 "missed_modal_title" = "Manage intake";
 "missed_modal_message_format" = "%@ · %@";
 "missed_action_taken" = "Yes, taken";

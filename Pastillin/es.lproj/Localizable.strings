@@ -18,7 +18,7 @@
 "missed_range_30" = "1 m";
 "missed_range_90" = "3 m";
 "missed_range_180" = "6 m";
-"missed_empty" = "No hay tomas pendientes en este rango.";
+"missed_empty" = "No tienes ninguna toma atrasada para el rango que has seleccionado.";
 "missed_modal_title" = "Gestionar toma";
 "missed_modal_message_format" = "%@ · %@";
 "missed_action_taken" = "**SI** que la tomé";
