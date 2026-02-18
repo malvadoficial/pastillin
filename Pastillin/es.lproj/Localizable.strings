@@ -321,6 +321,24 @@
 
 "settings_section_legal" = "Legal";
 "settings_open_legal" = "Aviso legal / Privacidad";
+"settings_section_about" = "Acerca de";
+"settings_open_about" = "Leer acerca de";
+"settings_about_text" = "Soy José Manuel Rives. He hecho esta aplicación con el objetivo de controlar las medicinas que tomo.Tengo cáncer en estadio IV y estoy con tratamiento de quimioterapia. Tomo mucha medicación pautada y de forma ocasional, y he de controlarla de alguna manera.\nSoy ingeniero informático con muchos años de experiencia pero he utilizado Codex de ChatGPT en la realización de esta app para ganar experiencia en el uso de herramientas de desarrollo para IA y porque no tengo tiempo de hacer la aplicación por mí mismo yo solo.\nPueden contactarme en mi dirección de correo: [malvadoficial@gmail.com](mailto:malvadoficial@gmail.com)\n\n**Puntos importantes:**\n- He hecho la aplicación sin ánimo de lucro.\n- La pongo a disposición del público por si a alguien le es también de utilidad y para intentar hacer algo por el servicio público que tanto me ha dado en mi situación.\n- Todos las características de la aplicación están basadas en mis casos de uso por lo que puede que no se ajuste a lo necesario por algún usuario, lo siento de antemano.\n- La subo a App Store pagando de mi bolsillo la cuenta y la publicación.\n- He utilizado la API de [**AEMPS**](https://www.aemps.gob.es/) (*Agencia Española del Medicamento y Productos Sanitarios*), agencia pública española a la que espero no causar ningún perjuicio.\n- He subido el código a: https://github.com/malvadoficial/pastillin por si alguien quiere verlo, participar o continuar.\n\n\n*Laura, Julieta, Sofía... va por vosotras.*";
+"settings_about_intro_name" = "Soy José Manuel Rives.";
+"settings_about_intro_goal" = "He hecho esta aplicación con el objetivo de controlar las medicinas que tomo.";
+"settings_about_intro_health_1" = "Tengo cáncer en estadio IV y estoy con tratamiento de quimioterapia.";
+"settings_about_intro_health_2" = "Tomo mucha medicación pautada y de forma ocasional, y he de controlarla de alguna manera.";
+"settings_about_intro_engineer_1" = "Soy ingeniero informático con muchos años de experiencia, pero he utilizado Codex de ChatGPT en la realización de esta app para ganar experiencia en el uso de herramientas de desarrollo para IA.";
+"settings_about_intro_engineer_2" = "No tengo tiempo de hacer la aplicación por mí mismo yo solo.";
+"settings_about_contact_prefix" = "Pueden contactarme en mi dirección de correo:";
+"settings_about_keypoints_title" = "Puntos importantes:";
+"settings_about_point_nonprofit" = "He hecho la aplicación sin ánimo de lucro.";
+"settings_about_point_appstore" = "La subo a App Store pagando de mi bolsillo la cuenta y la publicación.";
+"settings_about_point_aemps" = "He utilizado la API de AEMPS y espero no causar ningún perjuicio.";
+"settings_about_point_repo_prefix" = "He subido el código a:";
+"settings_about_repo_url_display" = "github.com/malvadoficial/pastillin";
+"settings_about_repo_url" = "https://github.com/malvadoficial/pastillin";
+"settings_about_dedication" = "Laura, Julieta, Sofía... va por vosotras.";
 "legal_disclaimer_title" = "Aviso legal";
 "legal_disclaimer_intro" = "Esta aplicación está creada para ayudar a organizar tomas de medicación.";
 "legal_disclaimer_point_1" = "No sustituye el consejo, diagnóstico ni tratamiento de un médico o profesional sanitario.";
@@ -364,3 +382,5 @@
 "today_cart_pending_purchase" = "Pendiente de comprar";
 "today_cart_runs_out_format" = "Se acabará el %@";
 "today_shopping_notice" = "Tienes medicinas próximas a acabarse";
+"medications_search_placeholder" = "Buscar medicamento";
+"medications_search_no_results" = "No se han encontrado medicamentos.";

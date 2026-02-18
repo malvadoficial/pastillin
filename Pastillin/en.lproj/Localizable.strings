@@ -321,6 +321,24 @@
 
 "settings_section_legal" = "Legal";
 "settings_open_legal" = "Legal notice / Privacy";
+"settings_section_about" = "About";
+"settings_open_about" = "Read about";
+"settings_about_text" = "I am Jose Manuel Rives. I built this app to keep track of the medicines I take. I have stage IV cancer and I am on chemotherapy treatment. I take a lot of scheduled and occasional medication, and I need to control it somehow.\nI am a software engineer with many years of experience but I have used ChatGPT Codex while building this app to gain experience with AI development tools because I do not have enough time to build the app fully on my own.\nYou can contact me at: [malvadoficial@gmail.com](mailto:malvadoficial@gmail.com)\n\n**Key points:**\n- I made this app as a non-profit project.\n- I make it available to the public in case it is also useful to someone else, and to try to give something back to the public healthcare service that has given me so much in my situation.\n- All app features are based on my own use cases, so it may not fit what some users need. I am sorry in advance.\n- I publish it on the App Store paying the developer account and publication costs myself.\n- I have used the API of [**AEMPS**](https://www.aemps.gob.es/) (*Spanish Agency for Medicines and Health Products*), a Spanish public agency that I hope not to cause any harm to.\n- I uploaded the code to: https://github.com/malvadoficial/pastillin in case anyone wants to review it, participate, or continue it.\n\n\n*Laura, Julieta, Sofía... this is for you.*";
+"settings_about_intro_name" = "I am Jose Manuel Rives.";
+"settings_about_intro_goal" = "I built this app to keep track of the medicines I take.";
+"settings_about_intro_health_1" = "I have stage IV cancer and I am on chemotherapy treatment.";
+"settings_about_intro_health_2" = "I take a lot of scheduled and occasional medication, and I need to control it somehow.";
+"settings_about_intro_engineer_1" = "I am a software engineer with many years of experience, but I have used ChatGPT Codex while building this app to gain experience with AI development tools.";
+"settings_about_intro_engineer_2" = "I do not have enough time to build the app fully on my own.";
+"settings_about_contact_prefix" = "You can contact me at:";
+"settings_about_keypoints_title" = "Key points:";
+"settings_about_point_nonprofit" = "I made this app as a non-profit project.";
+"settings_about_point_appstore" = "I publish it on the App Store paying the developer account and publication costs myself.";
+"settings_about_point_aemps" = "I have used the AEMPS API and I hope not to cause any harm.";
+"settings_about_point_repo_prefix" = "I uploaded the code to:";
+"settings_about_repo_url_display" = "github.com/malvadoficial/pastillin";
+"settings_about_repo_url" = "https://github.com/malvadoficial/pastillin";
+"settings_about_dedication" = "Laura, Julieta, Sofía... this is for you.";
 "legal_disclaimer_title" = "Legal disclaimer";
 "legal_disclaimer_intro" = "This app is made to help organize medication intakes.";
 "legal_disclaimer_point_1" = "It does not replace medical advice, diagnosis, or treatment from a doctor or healthcare professional.";
@@ -364,3 +382,5 @@
 "today_cart_pending_purchase" = "Pending purchase";
 "today_cart_runs_out_format" = "Will run out on %@";
 "today_shopping_notice" = "You have medicines that are close to running out";
+"medications_search_placeholder" = "Search medication";
+"medications_search_no_results" = "No medications found.";

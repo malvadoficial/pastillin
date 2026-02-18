@@ -25,6 +25,7 @@ struct SettingsView: View {
     @State private var showDeleteAllSuccessAlert = false
     @State private var showLegalDisclaimerAfterDelete = false
     @State private var showAEMPSInfoAlert = false
+    @State private var showAboutSheet = false
 
     @State private var errorText: String? = nil
 
@@ -173,6 +174,14 @@ struct SettingsView: View {
                         Label(L10n.tr("settings_open_legal"), systemImage: "doc.text")
                     }
                 }
+
+                Section(L10n.tr("settings_section_about")) {
+                    Button {
+                        showAboutSheet = true
+                    } label: {
+                        Label(L10n.tr("settings_open_about"), systemImage: "info.circle")
+                    }
+                }
             }
             .safeAreaPadding(.bottom, 84)
             .navigationBarTitleDisplayMode(.inline)
@@ -241,7 +250,41 @@ struct SettingsView: View {
                     ActivityShareSheet(activityItems: [url])
                 }
             }
+            .sheet(isPresented: $showAboutSheet) {
+                NavigationStack {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text(aboutAttributedText)
+                                .padding(.top, 8)
+                                .font(.body)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(16)
+                    }
+                    .navigationTitle(L10n.tr("settings_section_about"))
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button(L10n.tr("button_close")) {
+                                showAboutSheet = false
+                            }
+                        }
+                    }
+                }
+            }
         }
+    }
+
+    private var aboutAttributedText: AttributedString {
+        // Preserva saltos exactamente como se escriben en Localizable, manteniendo markdown inline.
+        let raw = L10n.tr("settings_about_text")
+        let withRealBreaks = raw.replacingOccurrences(of: "\\n", with: "\n")
+        var options = AttributedString.MarkdownParsingOptions()
+        options.interpretedSyntax = .inlineOnlyPreservingWhitespace
+        if let attributed = try? AttributedString(markdown: withRealBreaks, options: options) {
+            return attributed
+        }
+        return AttributedString(withRealBreaks)
     }
 
     private func loadOrCreateSettings() {

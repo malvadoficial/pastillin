@@ -19,6 +19,7 @@ struct MedicationsView: View {
     @State private var pendingOpenCart = false
     @State private var pendingCount: Int = 0
     @State private var listEditMode: EditMode = .inactive
+    @State private var searchText: String = ""
 
     private struct OccasionalGroup: Identifiable {
         let id: String
@@ -95,6 +96,9 @@ struct MedicationsView: View {
             if medications.isEmpty {
                 EmptyMedicinesStateView()
                     .listRowBackground(Color.clear)
+            } else if hasSearchText && scheduledMeds.isEmpty && occasionalGroups.isEmpty {
+                Text(L10n.tr("medications_search_no_results"))
+                    .foregroundStyle(.secondary)
             } else {
                 scheduledSection
                 occasionalSection
@@ -102,7 +106,13 @@ struct MedicationsView: View {
         }
         .safeAreaPadding(.bottom, 84)
         .environment(\.editMode, $listEditMode)
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationTitle(L10n.tr("medications_title"))
+        .navigationBarTitleDisplayMode(.large)
+        .searchable(
+            text: $searchText,
+            placement: .navigationBarDrawer(displayMode: .automatic),
+            prompt: L10n.tr("medications_search_placeholder")
+        )
         .toolbar { toolbarContent }
     }
 
@@ -134,13 +144,6 @@ struct MedicationsView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .principal) {
-            NavigationTitleWithIcon(
-                title: L10n.tr("medications_title"),
-                systemImage: "pills",
-                color: AppTheme.brandYellow
-            )
-        }
         ToolbarItemGroup(placement: .topBarLeading) {
             Button {
                 withAnimation {
@@ -193,12 +196,25 @@ struct MedicationsView: View {
         }
     }
 
+    private var hasSearchText: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var normalizedSearchText: String {
+        normalizedMedicationName(searchText)
+    }
+
+    private func matchesSearch(_ med: Medication) -> Bool {
+        guard hasSearchText else { return true }
+        return normalizedMedicationName(med.name).contains(normalizedSearchText)
+    }
+
     private var scheduledMeds: [Medication] {
-        sortedMeds.filter { $0.kind == .scheduled }
+        sortedMeds.filter { $0.kind == .scheduled && matchesSearch($0) }
     }
 
     private var occasionalMeds: [Medication] {
-        sortedMeds.filter { $0.kind == .occasional }
+        sortedMeds.filter { $0.kind == .occasional && matchesSearch($0) }
     }
 
     private var occasionalGroups: [OccasionalGroup] {
@@ -367,6 +383,7 @@ struct MedicationsView: View {
     }
 
     private func move(from source: IndexSet, to destination: Int, in section: SectionKind) {
+        guard !hasSearchText else { return }
         var scheduled = scheduledMeds
         switch section {
         case .scheduled:
@@ -381,6 +398,7 @@ struct MedicationsView: View {
     }
 
     private func moveOccasionalGroups(from source: IndexSet, to destination: Int) {
+        guard !hasSearchText else { return }
         var groups = occasionalGroups
         groups.move(fromOffsets: source, toOffset: destination)
 

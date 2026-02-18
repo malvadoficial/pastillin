@@ -39,6 +39,7 @@ struct NoTakenView: View {
     @State private var selectedRange: MissedRange = .days30
     @State private var showShoppingCart = false
     @State private var showShoppingDisclaimerAlert = false
+    private let emptyArtworkHeight: CGFloat = 180
 
     var body: some View {
         NavigationStack {
@@ -54,10 +55,15 @@ struct NoTakenView: View {
 
                 if rows.isEmpty {
                     Section {
-                        Text(L10n.tr("missed_empty"))
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .padding(.vertical, 8)
+                        VStack(spacing: 12) {
+                            pendingEmptyStateArtwork
+
+                            Text(L10n.tr("missed_empty"))
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .multilineTextAlignment(.center)
+                        }
+                        .padding(.vertical, 8)
                     }
                 } else {
                     ForEach(rows) { row in
@@ -95,7 +101,7 @@ struct NoTakenView: View {
                 ToolbarItem(placement: .principal) {
                     NavigationTitleWithIcon(
                         title: L10n.tr("missed_title"),
-                        systemImage: "xmark.circle",
+                        systemImage: "exclamationmark.triangle.fill",
                         color: AppTheme.brandRed
                     )
                 }
@@ -174,6 +180,33 @@ struct NoTakenView: View {
 
     private var shoppingCartCount: Int {
         medications.filter { $0.inShoppingCart }.count
+    }
+
+    @ViewBuilder
+    private var pendingEmptyStateArtwork: some View {
+        let localeCode = Locale.current.language.languageCode?.identifier.lowercased() ?? "es"
+        let preferredAssetName = localeCode.hasPrefix("en") ? "PendingEmptyState_EN" : "PendingEmptyState_ES"
+
+        if UIImage(named: preferredAssetName) != nil {
+            Image(preferredAssetName)
+                .resizable()
+                .scaledToFit()
+                .frame(height: emptyArtworkHeight)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        } else if UIImage(named: "PendingEmptyState") != nil {
+            Image("PendingEmptyState")
+                .resizable()
+                .scaledToFit()
+                .frame(height: emptyArtworkHeight)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        } else {
+            MedicationDefaultArtworkView(
+                kind: .red,
+                width: nil,
+                height: emptyArtworkHeight,
+                cornerRadius: 14
+            )
+        }
     }
 
     private func refreshData() {

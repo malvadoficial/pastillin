@@ -45,7 +45,7 @@ struct RootView: View {
                 .tag(AppTab.medications)
 
             NoTakenView()
-                .tabItem { Label(L10n.tr("tab_not_taken"), systemImage: "xmark.circle") }
+                .tabItem { Label(L10n.tr("tab_not_taken"), systemImage: "exclamationmark.triangle.fill") }
                 .tag(AppTab.noTaken)
 
             SettingsView()

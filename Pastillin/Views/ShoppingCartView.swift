@@ -8,6 +8,7 @@ struct ShoppingCartView: View {
     @Query private var medications: [Medication]
     @State private var showShareSheet = false
     @State private var listEditMode: EditMode = .inactive
+    private let emptyArtworkHeight: CGFloat = 180
 
     private var cartMeds: [Medication] {
         medications
@@ -226,11 +227,11 @@ struct ShoppingCartView: View {
             Image(preferredAssetName)
                 .resizable()
                 .scaledToFit()
-                .frame(height: 110)
+                .frame(height: emptyArtworkHeight)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         } else {
             Image(systemName: "cart")
-                .font(.system(size: 38, weight: .semibold))
+                .font(.system(size: 62, weight: .semibold))
                 .foregroundStyle(.secondary.opacity(0.8))
                 .frame(maxWidth: .infinity)
         }

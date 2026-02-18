@@ -200,9 +200,15 @@ struct TodayView: View {
                     Button {
                         showingAddTypeDialog = true
                     } label: {
-                        Image(systemName: "plus")
+                        ZStack {
+                            Circle()
+                                .fill(AppTheme.brandBlue)
+                                .frame(width: 28, height: 28)
+                            Image(systemName: "plus")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
                     }
-                    .foregroundStyle(AppTheme.brandBlue)
                     .background(
                         GeometryReader { proxy in
                             Color.clear.preference(

@@ -5,7 +5,7 @@ struct PendingIntakesIconView: View {
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            Image(systemName: "exclamationmark.triangle")
+            Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 17, weight: .semibold))
                 .padding(.top, 3)
                 .padding(.trailing, 4)
