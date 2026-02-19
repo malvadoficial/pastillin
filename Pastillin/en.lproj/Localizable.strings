@@ -43,7 +43,8 @@
 "summary_end_format" = " · end %@";
 "summary_start_line_format" = "Start %@";
 "summary_end_line_format" = "End %@";
-"summary_occasional_date_line_format" = "Date %@";
+"summary_finished_line_format" = "Finished %@";
+"summary_occasional_date_line_format" = "Last intake %@";
 "summary_chronic" = "Chronic";
 "summary_no_schedule" = "No schedule";
 "summary_no_date" = "No date";
@@ -79,6 +80,10 @@
 "occasional_reminder_toggle" = "Enable reminder";
 "occasional_reminder_time" = "Reminder time";
 "occasional_section_intakes" = "Intakes";
+"occasional_add_today_intake" = "Add intake Today";
+"occasional_add_today_intake_alert_title" = "Intake recorded";
+"occasional_add_today_intake_alert_message_created_format" = "An intake for today (%@) was recorded at %@.";
+"occasional_add_today_intake_alert_message_updated_format" = "Today's intake (%@) was updated to %@.";
 "edit_section_history_format" = "History (last %d)";
 "edit_title_new" = "New medication";
 "edit_title_new_occasional" = "New occasional-use medication";
@@ -93,6 +98,8 @@
 "save_add_to_cart_prompt_message" = "Do you want to add this medication to the shopping list?";
 "save_add_to_cart_yes" = "Yes, add";
 "save_add_to_cart_no" = "No, save without adding";
+"duplicate_scheduled_medication_title" = "Medication already exists";
+"duplicate_scheduled_medication_message" = "This medication already exists as a scheduled treatment in your cabinet. If your doctor has prescribed this treatment again, edit it from the cabinet by changing the start date, end date (if any), and schedule.";
 "button_save" = "Save";
 "button_edit" = "Edit";
 
@@ -116,6 +123,7 @@
 "day_empty" = "Nothing scheduled";
 "status_taken_masc" = "Taken";
 "status_not_taken_masc" = "Not taken";
+"button_back" = "Back";
 "button_close" = "Close";
 
 "detail_day_label_format" = "Day: %@";
@@ -132,6 +140,9 @@
 "detail_remove_for_day_title" = "Remove for this day";
 "detail_remove_for_day_message" = "Only this day will be removed. The treatment will remain active on other dates.";
 "detail_remove_for_day_confirm" = "Remove day";
+"detail_delete_intake" = "Delete intake";
+"detail_delete_intake_title" = "Delete intake";
+"detail_delete_intake_message" = "This action will not delete the medication from the cabinet or its history.";
 
 "settings_title" = "Settings";
 "settings_section_reminder" = "Daily reminder";
@@ -191,7 +202,52 @@
 "photo_choose_title" = "Choose an option";
 
 "settings_section_help" = "Help";
+"settings_open_tutorial" = "View onboarding tutorial";
 "settings_open_help" = "View app help";
+
+"tutorial_title" = "Tutorial";
+"tutorial_page_cabinet_title" = "Cabinet Section";
+"tutorial_cabinet_step_1" = "In the Cabinet section you have all your medications: the ones you take now, the ones you have taken, and the ones you will take later.";
+"tutorial_cabinet_step_2" = "A medication can be scheduled (daily or every few days), chronic (no end date), or with an end date.";
+"tutorial_cabinet_step_3" = "You enter all that information when creating or editing the medication.";
+"tutorial_cabinet_step_4" = "If a scheduled treatment has already ended (including today), you will see \"Finished\" next to its end date.";
+"tutorial_cabinet_step_5" = "Occasional-use medications show the date of the last intake.";
+"tutorial_cabinet_step_6" = "From this screen you can also open the shopping list and add or remove medications from the cart.";
+"tutorial_cabinet_step_7" = "If after some time, by medical prescription, you need to take again a scheduled medication you used in the past, the best option is to edit the one already in your Cabinet and update its schedule with the new start date and, if applicable, the end date. This keeps the intake history and generates upcoming intakes automatically.";
+"tutorial_page_today_title" = "Today Section";
+"tutorial_today_step_1" = "Here you can see the medications due today.";
+"tutorial_today_step_2" = "To mark an intake as done, tap the status button. If it is marked today, the current time is saved automatically.";
+"tutorial_today_step_3" = "If you took it at a different time, tap the medication to open detail and edit the intake time.";
+"tutorial_today_step_4" = "If one day you need an occasional-use medication (for example, paracetamol), you can register it from this screen.";
+"tutorial_today_step_5" = "If that occasional medication is already in your Cabinet, it is faster to do it from there: open the medication.";
+"tutorial_today_step_6" = "Tap \"Add intake Today\" to register the intake quickly.";
+"tutorial_page_calendar_title" = "Calendar Section";
+"tutorial_calendar_step_1" = "Here you can see the days when you took all medications: in blue; days when you missed some: in yellow; and days when you took none: in red. Future days are also shown in red because you have not taken those doses yet.";
+"tutorial_calendar_step_2" = "If you tap a day, you will see below the calendar the list of medications due on that day.";
+"tutorial_calendar_step_3" = "If you forgot to mark a medication as taken on a past day, go to that day, open the medication and, in detail view, mark it as Taken (or Not taken if you made a mistake). You can also change the taken time.";
+"tutorial_calendar_step_4" = "Another option is to tap the pencil icon in the upper-left corner and you will see all intakes for that day. You can mark medications by tapping the buttons in a faster way.";
+"tutorial_page_pending_title" = "Pending Section";
+"tutorial_pending_step_1" = "At the top left you will see a triangle icon with or without a number indicating there are medications you should have taken and forgot. If you tap it, you will go to the Pending section.";
+"tutorial_pending_step_2" = "When you tap a pending intake, an action sheet will open for that intake.";
+"tutorial_pending_step_3" = "You can choose: \"Yes, I took it\" or \"No, I did not take it\". If you choose \"Yes, I took it\", the intake is marked as taken. If you choose \"No, I did not take it\", it remains not taken.";
+"tutorial_pending_step_4" = "You can also choose \"I took it on another day\". In that case, you select the real date and Pastillin moves that intake to that day and recalculates only future intakes to keep the schedule.";
+"tutorial_page_cart_title" = "Cart Section";
+"tutorial_cart_step_1" = "The Cart section is a shopping list that helps you remember which medications you need to buy and which ones are close to running out.";
+"tutorial_cart_step_2" = "When you add a new medication to the cabinet, you will have the option to add it to your shopping cart in case you do not have it at home.";
+"tutorial_cart_step_3" = "When you have a medication you need to buy, you can add it to the cart by tapping the icon you saw in the Cabinet section.";
+"tutorial_cart_step_4" = "In the cabinet you can specify how many doses you have left for that medication. It is not mandatory. But this way Pastillin can tell you exactly when the medication runs out, and you will also see a notice in the Today section reminding you that some medications are close to running out.";
+"tutorial_cart_step_5" = "Remember: the app does not purchase medications, it is only a helper for the shopping list.";
+"tutorial_page_settings_title" = "Settings Section";
+"tutorial_settings_step_1" = "In this section you can enable daily reminders (up to 3). At that time you will receive a notification that, when tapped, takes you to the Today tab so you can review and record the medications you took.";
+"tutorial_settings_step_2" = "You also have the option to disable integration with the Spanish Agency of Medicines and Health Products (AEMPS). That will disable name autocomplete and medication information.";
+"tutorial_settings_step_3" = "Right below, you can open the AEMPS search section. There you can query the Agency database and get medication information (name, active ingredient, prescription status, leaflet, format...). You can also add medications to the Cabinet from there.";
+"tutorial_settings_step_4" = "In this same section you can generate a report with medications and intakes for the period you choose.";
+"tutorial_settings_step_5" = "You can also generate a backup or restore a previous one.";
+"tutorial_settings_step_6" = "Finally, you have several auxiliary options: view this tutorial, view app help, delete all data (BE VERY CAREFUL WITH THIS), legal notice, and some information about me.";
+"tutorial_prev" = "Previous";
+"tutorial_next" = "Next";
+"tutorial_finish" = "Finish";
+"tutorial_end_reminder" = "Remember: you can view this tutorial again from the Settings section.";
 
 "help_title" = "Help";
 "help_intro" = "This app helps you organize treatments in Today, Calendar, and Cabinet, mark intakes, manage pending doses, prepare a shopping list, and check official AEMPS information.";

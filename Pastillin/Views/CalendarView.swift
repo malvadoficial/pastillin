@@ -14,6 +14,7 @@ struct CalendarView: View {
     @Query private var medications: [Medication]
     @Query private var logs: [IntakeLog]
     @AppStorage("selectedTab") private var selectedTab: AppTab = .calendar
+    @AppStorage("lastTabBeforeNoTaken") private var lastTabBeforeNoTakenRaw: String = AppTab.calendar.rawValue
     @AppStorage("shoppingCartDisclaimerShown") private var shoppingCartDisclaimerShown: Bool = false
 
     @State private var monthBase: Date = Date()
@@ -22,9 +23,9 @@ struct CalendarView: View {
     @State private var dayEditorTarget: DayEditorWrapper? = nil
     @State private var showingAddTypeDialog = false
     @State private var addMode: CalendarAddMode? = nil
-    @State private var showShoppingCart = false
     @State private var showShoppingDisclaimerAlert = false
     @State private var pendingCount: Int = 0
+    @State private var calendarRefreshTick: Int = 0
     private var isCompactLayout: Bool { verticalSizeClass == .compact }
     private var rootSpacing: CGFloat { isCompactLayout ? 4 : 8 }
     private var gridSpacing: CGFloat { isCompactLayout ? 4 : 8 }
@@ -39,7 +40,6 @@ struct CalendarView: View {
         let dayKey = Calendar.current.startOfDay(for: selectedDay)
         return !rowsForDay(dayKey).isEmpty
     }
-
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -61,7 +61,10 @@ struct CalendarView: View {
                                 Button {
                                     let key = Calendar.current.startOfDay(for: day)
                                     selectedDay = key
-                                    try? LogService.ensureLogs(for: key, modelContext: modelContext)
+                                    let today = Calendar.current.startOfDay(for: Date())
+                                    if key >= today {
+                                        try? LogService.ensureLogs(for: key, modelContext: modelContext)
+                                    }
                                 } label: {
                                     VStack(spacing: 6) {
                                         Text("\(Calendar.current.component(.day, from: day))")
@@ -94,6 +97,7 @@ struct CalendarView: View {
                             }
                         }
                     }
+                    .id(calendarRefreshTick)
                     .padding(.horizontal, isCompactLayout ? 8 : 12)
 
                     if let day = selectedDay {
@@ -102,6 +106,7 @@ struct CalendarView: View {
                     }
                 }
             }
+            .textSelection(.enabled)
             .safeAreaPadding(.bottom, 84)
             .padding(.bottom, isCompactLayout ? 6 : 0)
             .navigationBarTitleDisplayMode(.inline)
@@ -130,6 +135,7 @@ struct CalendarView: View {
                     }
 
                     Button {
+                        lastTabBeforeNoTakenRaw = AppTab.calendar.rawValue
                         selectedTab = .noTaken
                     } label: {
                         PendingIntakesIconView(count: pendingCount)
@@ -142,7 +148,7 @@ struct CalendarView: View {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button {
                         if shoppingCartDisclaimerShown {
-                            showShoppingCart = true
+                            selectedTab = .cart
                         } else {
                             showShoppingDisclaimerAlert = true
                         }
@@ -198,43 +204,65 @@ struct CalendarView: View {
                     initialStartDate: target
                 )
             }
-            .sheet(isPresented: $showShoppingCart) {
-                NavigationStack {
-                    ShoppingCartView()
-                }
-            }
             .alert(L10n.tr("cart_disclaimer_title"), isPresented: $showShoppingDisclaimerAlert) {
                 Button(L10n.tr("cart_disclaimer_understood")) {
                     shoppingCartDisclaimerShown = true
-                    showShoppingCart = true
+                    selectedTab = .cart
                 }
             } message: {
                 Text(L10n.tr("cart_disclaimer_message"))
             }
             .onAppear {
-                // Al menos crea logs para hoy (el resto se crea al entrar en cada día)
+                // Precarga logs del mes visible para que los estados de color estén listos sin pulsar días.
+                ensureVisibleMonthLogs()
                 try? LogService.ensureLogs(for: Date(), modelContext: modelContext)
                 if selectedDay == nil {
                     selectedDay = Calendar.current.startOfDay(for: Date())
                 }
                 refreshPendingCount()
             }
+            .onChange(of: monthBase) { _, _ in
+                ensureVisibleMonthLogs()
+            }
             .onChange(of: selectedDay) { _, newValue in
                 if let d = newValue {
-                    try? LogService.ensureLogs(for: d, modelContext: modelContext)
+                    let today = Calendar.current.startOfDay(for: Date())
+                    if d >= today {
+                        try? LogService.ensureLogs(for: d, modelContext: modelContext)
+                    }
                 }
             }
             .onChange(of: logs.count) { _, _ in
                 refreshPendingCount()
+                calendarRefreshTick &+= 1
             }
             .onChange(of: medications.count) { _, _ in
+                ensureVisibleMonthLogs()
                 refreshPendingCount()
+                calendarRefreshTick &+= 1
+            }
+            .onChange(of: selectedLogDetail?.id) { _, newValue in
+                if newValue == nil {
+                    refreshPendingCount()
+                    calendarRefreshTick &+= 1
+                }
+            }
+            .onChange(of: dayEditorTarget?.id) { _, newValue in
+                if newValue == nil {
+                    refreshPendingCount()
+                    calendarRefreshTick &+= 1
+                }
             }
             .onReceive(NotificationCenter.default.publisher(for: .calendarJumpToToday)) { _ in
                 monthBase = Date()
                 let today = Calendar.current.startOfDay(for: Date())
                 selectedDay = today
                 try? LogService.ensureLogs(for: today, modelContext: modelContext)
+                refreshPendingCount()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .intakeLogsDidChange)) { _ in
+                refreshPendingCount()
+                calendarRefreshTick &+= 1
             }
         }
     }
@@ -244,9 +272,29 @@ struct CalendarView: View {
     }
 
     private func refreshPendingCount() {
+        let fetchedMeds = (try? modelContext.fetch(FetchDescriptor<Medication>())) ?? medications
+        let fetchedLogs = (try? modelContext.fetch(FetchDescriptor<IntakeLog>())) ?? logs
         pendingCount = PendingIntakeService.pendingMedicationCount(
-            medications: medications,
-            logs: logs
+            medications: fetchedMeds,
+            logs: fetchedLogs
+        )
+    }
+
+    private func ensureVisibleMonthLogs() {
+        let cal = Calendar.current
+        let comps = cal.dateComponents([.year, .month], from: monthBase)
+        guard let firstOfMonth = cal.date(from: comps) else { return }
+        guard let dayRange = cal.range(of: .day, in: .month, for: firstOfMonth) else { return }
+        guard let lastOfMonth = cal.date(byAdding: .day, value: dayRange.count - 1, to: firstOfMonth) else { return }
+        let today = cal.startOfDay(for: Date())
+        let from = max(cal.startOfDay(for: firstOfMonth), today)
+        let to = cal.startOfDay(for: lastOfMonth)
+        guard from <= to else { return }
+
+        try? LogService.ensureLogs(
+            from: from,
+            to: to,
+            modelContext: modelContext
         )
     }
 
@@ -298,25 +346,46 @@ struct CalendarView: View {
     private func statusForDay(_ day: Date) -> DayStatus {
         let cal = Calendar.current
         let key = cal.startOfDay(for: day)
-
+        let todayKey = cal.startOfDay(for: Date())
         let activeMeds = medications.filter { $0.isActive }
-        let due = activeMeds.filter { $0.isDue(on: key, calendar: cal) }
-        if due.isEmpty { return .none } // blanco
-
         let dayLogs = logs.filter { cal.isDate($0.dateKey, inSameDayAs: key) }
-
-        var takenCount = 0
-        for med in due {
-            let log = dayLogs.first(where: { $0.medicationID == med.id })
-            if log?.isTaken == true {
-                takenCount += 1
-            }
-            // si no hay log -> cuenta como no tomada (para no dar falsos verdes)
+        let takenByMedication: [UUID: Bool] = dayLogs.reduce(into: [:]) { partial, log in
+            partial[log.medicationID] = (partial[log.medicationID] ?? false) || log.isTaken
         }
 
-        if takenCount == 0 { return .noneTaken }         // rojo
-        if takenCount == due.count { return .allTaken }  // verde
-        return .someTaken                                // amarillo
+        // En días pasados, el estado se basa solo en el histórico real guardado.
+        // No usar la pauta actual para evitar "mover" visualmente el pasado.
+        if key < todayKey {
+            if dayLogs.isEmpty { return .none }
+            let loggedIDs = Set(dayLogs.map(\.medicationID))
+            let takenCount = loggedIDs.filter { takenByMedication[$0] == true }.count
+            if takenCount == 0 { return .noneTaken }              // rojo
+            if takenCount == loggedIDs.count { return .allTaken } // azul
+            return .someTaken                                     // amarillo
+        }
+
+        let due = activeMeds.filter { $0.isDue(on: key, calendar: cal) }
+
+        // Regla principal: si tocaba medicación pautada, el estado del día se basa en esa pauta.
+        // Si falta log para alguna, cuenta como no tomada.
+        if !due.isEmpty {
+            let dueIDs = Set(due.map(\.id))
+            let takenCount = dueIDs.filter { takenByMedication[$0] == true }.count
+            if takenCount == 0 { return .noneTaken }         // rojo
+            if takenCount == dueIDs.count { return .allTaken } // azul
+            return .someTaken                                // amarillo
+        }
+
+        // Si no tocaba nada por pauta, usa lo que haya en logs del día (p.ej. ocasionales).
+        if !dayLogs.isEmpty {
+            let loggedIDs = Set(dayLogs.map(\.medicationID))
+            let takenCount = loggedIDs.filter { takenByMedication[$0] == true }.count
+            if takenCount == 0 { return .noneTaken }            // rojo
+            if takenCount == loggedIDs.count { return .allTaken } // azul
+            return .someTaken                                   // amarillo
+        }
+
+        return .none // blanco: no tocaba nada
     }
 
     private func color(for status: DayStatus) -> Color {
@@ -444,10 +513,18 @@ struct CalendarView: View {
 
     private func rowsForDay(_ dayKey: Date) -> [(med: Medication, log: IntakeLog)] {
         let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let dayLogs = logs.filter { cal.isDate($0.dateKey, inSameDayAs: dayKey) }
+        let medsByID = Dictionary(uniqueKeysWithValues: medications.map { ($0.id, $0) })
 
-        let active = medications.filter { $0.isActive }
-        let due = active
-            .filter { $0.isDue(on: dayKey, calendar: cal) }
+        if dayKey < today {
+            let active = medications.filter { $0.isActive }
+            let due = active.filter { $0.isDue(on: dayKey, calendar: cal) }
+            let dueIDs = Set(due.map(\.id))
+            let logIDs = Set(dayLogs.map(\.medicationID))
+            let idsToShow = dueIDs.union(logIDs)
+
+            let medsToShow = idsToShow.compactMap { medsByID[$0] }
             .sorted {
                 let o0 = $0.sortOrder ?? 0
                 let o1 = $1.sortOrder ?? 0
@@ -455,11 +532,27 @@ struct CalendarView: View {
                 return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
             }
 
-        let dayLogs = logs.filter { cal.isDate($0.dateKey, inSameDayAs: dayKey) }
+            return medsToShow.compactMap { med in
+                guard let log = dayLogs.first(where: { $0.medicationID == med.id }) else { return nil }
+                return (med: med, log: log)
+            }
+        }
 
-        return due.compactMap { med in
+        let active = medications.filter { $0.isActive }
+        let due = active
+            .filter { $0.isDue(on: dayKey, calendar: cal) }
+        let dueIDs = Set(due.map(\.id))
+
+        let medsToShow = dueIDs.compactMap { medsByID[$0] }.sorted {
+            let o0 = $0.sortOrder ?? 0
+            let o1 = $1.sortOrder ?? 0
+            if o0 != o1 { return o0 < o1 }
+            return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+
+        return medsToShow.compactMap { med in
             guard let log = dayLogs.first(where: { $0.medicationID == med.id }) else { return nil }
-            return (med, log)
+            return (med: med, log: log)
         }
     }
 

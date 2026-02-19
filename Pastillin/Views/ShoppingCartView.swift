@@ -4,7 +4,6 @@ import UIKit
 
 struct ShoppingCartView: View {
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
     @Query private var medications: [Medication]
     @State private var showShareSheet = false
     @State private var listEditMode: EditMode = .inactive
@@ -210,7 +209,6 @@ struct ShoppingCartView: View {
                     }
                     .accessibilityLabel(L10n.tr("cart_share_button"))
                 }
-                Button(L10n.tr("button_close")) { dismiss() }
             }
         }
         .sheet(isPresented: $showShareSheet) {

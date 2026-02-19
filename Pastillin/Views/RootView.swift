@@ -11,51 +11,99 @@ import UIKit
 
 extension Notification.Name {
     static let calendarJumpToToday = Notification.Name("calendarJumpToToday")
+    static let intakeLogsDidChange = Notification.Name("intakeLogsDidChange")
 }
 
 enum AppTab: String {
     case today
     case calendar
     case medications
+    case cart
     case noTaken
     case settings
 }
 
 struct RootView: View {
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage("selectedTab") private var selectedTab: AppTab = .today
+    @AppStorage("hasSeenOnboardingTutorial") private var hasSeenOnboardingTutorial = false
+    @AppStorage("showOnboardingTutorialNow") private var showOnboardingTutorialNow = false
+    @AppStorage("tutorialDemoDataCreated") private var tutorialDemoDataCreated = false
+    @AppStorage("tutorialDemoMedicationIDs") private var tutorialDemoMedicationIDsRaw = ""
+    @AppStorage("tutorialDemoCleanupNow") private var tutorialDemoCleanupNow = false
     @Query private var settings: [AppSettings]
+    @State private var showTutorial = false
     
     init() {
         UITabBar.appearance().isHidden = true
     }
 
     var body: some View {
-        TabView(selection: tabSelectionBinding) {
-            TodayView()
-                .tabItem { Label(L10n.tr("tab_today"), systemImage: "checklist") }
-                .tag(AppTab.today)
+        Group {
+            if selectedTab == .noTaken {
+                NoTakenView()
+            } else {
+                TabView(selection: tabSelectionBinding) {
+                    TodayView()
+                        .tabItem { Label(L10n.tr("tab_today"), systemImage: "checklist") }
+                        .tag(AppTab.today)
 
-            CalendarView()
-                .tabItem { Label(L10n.tr("tab_calendar"), systemImage: "calendar") }
-                .tag(AppTab.calendar)
+                    CalendarView()
+                        .tabItem { Label(L10n.tr("tab_calendar"), systemImage: "calendar") }
+                        .tag(AppTab.calendar)
 
-            MedicationsView()
-                .tabItem { Label(L10n.tr("tab_medications"), systemImage: "pills") }
-                .tag(AppTab.medications)
+                    MedicationsView()
+                        .tabItem { Label(L10n.tr("tab_medications"), systemImage: "pills") }
+                        .tag(AppTab.medications)
 
-            NoTakenView()
-                .tabItem { Label(L10n.tr("tab_not_taken"), systemImage: "exclamationmark.triangle.fill") }
-                .tag(AppTab.noTaken)
+                    ShoppingCartView()
+                        .tabItem { Label(L10n.tr("cart_title"), systemImage: "cart") }
+                        .tag(AppTab.cart)
 
-            SettingsView()
-                .tabItem { Label(L10n.tr("tab_settings"), systemImage: "gearshape") }
-                .tag(AppTab.settings)
+                    SettingsView()
+                        .tabItem { Label(L10n.tr("tab_settings"), systemImage: "gearshape") }
+                        .tag(AppTab.settings)
+                }
+            }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             customBottomBar
         }
         .preferredColorScheme(preferredColorScheme)
+        .onAppear {
+            if !hasSeenOnboardingTutorial {
+                prepareTutorialDemoDataIfNeeded()
+                showTutorial = true
+            }
+        }
+        .onChange(of: showOnboardingTutorialNow) { _, newValue in
+            guard newValue else { return }
+            prepareTutorialDemoDataIfNeeded()
+            showTutorial = true
+        }
+        .overlay {
+            if showTutorial {
+                TutorialView(
+                    onSelectTab: { tab in
+                        tabSelectionBinding.wrappedValue = tab
+                    },
+                    onFinish: {
+                        hasSeenOnboardingTutorial = true
+                        showOnboardingTutorialNow = false
+                        showTutorial = false
+                        selectedTab = .today
+                        // Solicita limpieza inmediata en SplashGate (desmonta UI antes de borrar).
+                        if tutorialDemoDataCreated {
+                            tutorialDemoCleanupNow = true
+                        }
+                    }
+                )
+                .zIndex(10)
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: showTutorial)
     }
 
 
@@ -146,10 +194,27 @@ struct RootView: View {
             return AppTheme.brandRed
         case .medications:
             return AppTheme.brandYellow
+        case .cart:
+            return AppTheme.brandYellow
         case .noTaken:
             return AppTheme.brandRed
         case .settings:
             return colorScheme == .dark ? .white : .black
         }
     }
+
+    private func prepareTutorialDemoDataIfNeeded() {
+        guard !hasSeenOnboardingTutorial else { return }
+        guard !tutorialDemoDataCreated else { return }
+
+        let meds = (try? modelContext.fetch(FetchDescriptor<Medication>())) ?? []
+        let logs = (try? modelContext.fetch(FetchDescriptor<IntakeLog>())) ?? []
+        guard meds.isEmpty && logs.isEmpty else { return }
+
+        if let ids = try? TutorialDemoDataService.seed(modelContext: modelContext) {
+            tutorialDemoMedicationIDsRaw = ids.map(\.uuidString).joined(separator: ",")
+            tutorialDemoDataCreated = true
+        }
+    }
+
 }

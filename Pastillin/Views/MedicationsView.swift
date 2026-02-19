@@ -7,17 +7,15 @@ struct MedicationsView: View {
     @Query private var medications: [Medication]
     @Query private var logs: [IntakeLog]
     @AppStorage("selectedTab") private var selectedTab: AppTab = .medications
-    @AppStorage("openShoppingCartFromToday") private var openShoppingCartFromToday: Bool = false
+    @AppStorage("lastTabBeforeNoTaken") private var lastTabBeforeNoTakenRaw: String = AppTab.medications.rawValue
     @AppStorage("shoppingCartDisclaimerShown") private var shoppingCartDisclaimerShown: Bool = false
 
     @State private var showingAddTypeDialog = false
     @State private var addMode: AddMode? = nil
     @State private var editMed: Medication? = nil
-    @State private var showShoppingCart = false
     @State private var showShoppingDisclaimerAlert = false
     @State private var pendingCartMedicationID: UUID? = nil
     @State private var pendingOpenCart = false
-    @State private var pendingCount: Int = 0
     @State private var listEditMode: EditMode = .inactive
     @State private var searchText: String = ""
 
@@ -25,6 +23,12 @@ struct MedicationsView: View {
         let id: String
         let medications: [Medication]
         let representative: Medication
+    }
+    private var pendingCount: Int {
+        PendingIntakeService.pendingMedicationCount(
+            medications: medications,
+            logs: logs
+        )
     }
 
     var body: some View {
@@ -49,36 +53,12 @@ struct MedicationsView: View {
             }
             .onAppear {
                 normalizeSortOrderIfNeeded()
-                refreshPendingCount()
-            }
-            .onAppear {
-                if openShoppingCartFromToday {
-                    openShoppingCartFromToday = false
-                    showShoppingCart = true
-                }
-            }
-            .onChange(of: logs.count) { _, _ in
-                refreshPendingCount()
-            }
-            .onChange(of: medications.count) { _, _ in
-                refreshPendingCount()
-            }
-            .onChange(of: openShoppingCartFromToday) { _, newValue in
-                if newValue {
-                    openShoppingCartFromToday = false
-                    showShoppingCart = true
-                }
             }
             .sheet(item: $addMode) { mode in
                 EditMedicationView(medication: nil, creationKind: mode.kind)
             }
             .sheet(item: $editMed) { med in
-                EditMedicationView(medication: med)
-            }
-            .sheet(isPresented: $showShoppingCart) {
-                NavigationStack {
-                    ShoppingCartView()
-                }
+                EditMedicationView(medication: med, openedFromCabinet: true)
             }
             .alert(L10n.tr("cart_disclaimer_title"), isPresented: $showShoppingDisclaimerAlert) {
                 Button(L10n.tr("cart_disclaimer_understood")) {
@@ -104,6 +84,7 @@ struct MedicationsView: View {
                 occasionalSection
             }
         }
+        .textSelection(.enabled)
         .safeAreaPadding(.bottom, 84)
         .environment(\.editMode, $listEditMode)
         .navigationTitle(L10n.tr("medications_title"))
@@ -156,6 +137,7 @@ struct MedicationsView: View {
             .accessibilityLabel(L10n.tr("button_edit"))
 
             Button {
+                lastTabBeforeNoTakenRaw = AppTab.medications.rawValue
                 selectedTab = .noTaken
             } label: {
                 PendingIntakesIconView(count: pendingCount)
@@ -178,13 +160,6 @@ struct MedicationsView: View {
 
     private var shoppingCartCount: Int {
         medications.filter { $0.inShoppingCart }.count
-    }
-
-    private func refreshPendingCount() {
-        pendingCount = PendingIntakeService.pendingMedicationCount(
-            medications: medications,
-            logs: logs
-        )
     }
 
     private var sortedMeds: [Medication] {
@@ -314,7 +289,7 @@ struct MedicationsView: View {
 
     private func requestCartOpen() {
         if shoppingCartDisclaimerShown {
-            showShoppingCart = true
+            selectedTab = .cart
             return
         }
         pendingOpenCart = true
@@ -356,7 +331,7 @@ struct MedicationsView: View {
 
     private func runPendingCartAction() {
         if pendingOpenCart {
-            showShoppingCart = true
+            selectedTab = .cart
         } else if let medicationID = pendingCartMedicationID {
             addToCart(medicationID: medicationID)
         }
@@ -465,9 +440,16 @@ struct MedicationsView: View {
                     .foregroundStyle(.secondary)
 
                 if let endDate = med.endDate {
-                    Text(String(format: L10n.tr("summary_end_line_format"), Fmt.dayMedium(endDate)))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    let isFinished = Calendar.current.startOfDay(for: endDate) <= Calendar.current.startOfDay(for: Date())
+                    if isFinished {
+                        Text(String(format: L10n.tr("summary_finished_line_format"), Fmt.dayMedium(endDate)))
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.primary)
+                    } else {
+                        Text(String(format: L10n.tr("summary_end_line_format"), Fmt.dayMedium(endDate)))
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
                 } else {
                     Text(L10n.tr("summary_chronic"))
                         .font(.subheadline.weight(.bold))

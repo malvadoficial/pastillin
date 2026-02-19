@@ -7,12 +7,14 @@ import WebKit
 struct EditMedicationView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @AppStorage("selectedTab") private var selectedTab: AppTab = .medications
 
     let medication: Medication?
     let creationKind: MedicationKind?
     let markTakenNowOnCreate: Bool
     let initialStartDate: Date?
     let prefill: MedicationPrefillData?
+    let openedFromCabinet: Bool
 
     @State private var name: String = ""
     @State private var note: String = ""
@@ -47,8 +49,11 @@ struct EditMedicationView: View {
     @State private var historyLogForActions: IntakeLog? = nil
     @State private var historyEditedTime: Date = Date()
     @State private var isHistoryEditing: Bool = false
-    @State private var showShoppingCart = false
     @State private var showAddToCartOnCreatePrompt = false
+    @State private var showDuplicateScheduledMedicationAlert = false
+    @State private var showOccasionalTodayIntakeAlert = false
+    @State private var occasionalTodayIntakeTime: Date = Date()
+    @State private var occasionalTodayIntakeWasUpdated = false
 
     @StateObject private var nameAutocomplete = MedicationNameAutocompleteViewModel()
     @FocusState private var focusedField: Field?
@@ -88,13 +93,15 @@ struct EditMedicationView: View {
         creationKind: MedicationKind? = nil,
         markTakenNowOnCreate: Bool = false,
         initialStartDate: Date? = nil,
-        prefill: MedicationPrefillData? = nil
+        prefill: MedicationPrefillData? = nil,
+        openedFromCabinet: Bool = false
     ) {
         self.medication = medication
         self.creationKind = creationKind
         self.markTakenNowOnCreate = markTakenNowOnCreate
         self.initialStartDate = initialStartDate
         self.prefill = prefill
+        self.openedFromCabinet = openedFromCabinet
     }
 
     var body: some View {
@@ -148,6 +155,17 @@ struct EditMedicationView: View {
                         .onSubmit { focusedField = nil }
 
                     Toggle(L10n.tr("edit_toggle_active"), isOn: $isActive)
+                }
+
+                if let med = medication, med.kind == .occasional, openedFromCabinet {
+                    Section {
+                        Button {
+                            addOccasionalIntakeToday(for: med)
+                        } label: {
+                            Label(L10n.tr("occasional_add_today_intake"), systemImage: "plus.circle.fill")
+                                .frame(maxWidth: .infinity, alignment: .center)
+                        }
+                    }
                 }
 
                 if hasOfficialInfo || isLoadingCIMADetail {
@@ -411,7 +429,8 @@ struct EditMedicationView: View {
                     }
                     ToolbarItemGroup(placement: .topBarTrailing) {
                         Button {
-                            showShoppingCart = true
+                            selectedTab = .cart
+                            dismiss()
                         } label: {
                             ShoppingCartIconView(count: shoppingCartCount)
                         }
@@ -522,6 +541,25 @@ struct EditMedicationView: View {
             } message: {
                 Text(L10n.tr("save_add_to_cart_prompt_message"))
             }
+            .alert(L10n.tr("duplicate_scheduled_medication_title"), isPresented: $showDuplicateScheduledMedicationAlert) {
+                Button(L10n.tr("button_ok"), role: .cancel) {}
+            } message: {
+                Text(L10n.tr("duplicate_scheduled_medication_message"))
+            }
+            .alert(L10n.tr("occasional_add_today_intake_alert_title"), isPresented: $showOccasionalTodayIntakeAlert) {
+                Button(L10n.tr("button_ok"), role: .cancel) {}
+            } message: {
+                let messageKey = occasionalTodayIntakeWasUpdated
+                    ? "occasional_add_today_intake_alert_message_updated_format"
+                    : "occasional_add_today_intake_alert_message_created_format"
+                Text(
+                    String(
+                        format: L10n.tr(messageKey),
+                        Fmt.dayMedium(occasionalTodayIntakeTime),
+                        Fmt.timeShort(occasionalTodayIntakeTime)
+                    )
+                )
+            }
             .sheet(item: $prospectoSheetURL) { item in
                 NavigationStack {
                     ProspectoScreen(url: item.url)
@@ -532,11 +570,6 @@ struct EditMedicationView: View {
                                 }
                             }
                     }
-                }
-            }
-            .sheet(isPresented: $showShoppingCart) {
-                NavigationStack {
-                    ShoppingCartView()
                 }
             }
             .animation(.easeInOut(duration: 0.2), value: showPickerSheet)
@@ -565,6 +598,8 @@ struct EditMedicationView: View {
     // MARK: - Historial helpers
 
     private func history(for medication: Medication) -> [IntakeLog] {
+        let cal = Calendar.current
+        let todayKey = cal.startOfDay(for: Date())
         let filtered: [IntakeLog]
         if medication.kind == .occasional {
             let nameKey = normalizedMedicationName(medication.name)
@@ -573,9 +608,13 @@ struct EditMedicationView: View {
                     .filter { $0.kind == .occasional && normalizedMedicationName($0.name) == nameKey }
                     .map(\.id)
             )
-            filtered = allLogs.filter { siblingIDs.contains($0.medicationID) }
+            filtered = allLogs.filter {
+                siblingIDs.contains($0.medicationID) && cal.startOfDay(for: $0.dateKey) <= todayKey
+            }
         } else {
-            filtered = allLogs.filter { $0.medicationID == medication.id }
+            filtered = allLogs.filter {
+                $0.medicationID == medication.id && cal.startOfDay(for: $0.dateKey) <= todayKey
+            }
         }
 
         let sorted = filtered.sorted {
@@ -699,6 +738,8 @@ struct EditMedicationView: View {
             } else {
                 hasEndDate = false
             }
+
+            ensureScheduledHistoryCoverageIfNeeded(for: med)
             return
         }
 
@@ -723,17 +764,49 @@ struct EditMedicationView: View {
     }
 
     private func onSaveTapped() {
-        if medication == nil {
+        if shouldBlockScheduledDuplicateOnCreate() {
+            showDuplicateScheduledMedicationAlert = true
+            return
+        }
+
+        if shouldPromptAddToCartOnCreate() {
             showAddToCartOnCreatePrompt = true
             return
         }
         save(addToCartOnCreate: false)
     }
 
+    private func shouldPromptAddToCartOnCreate() -> Bool {
+        guard medication == nil else { return false }
+
+        let cleanNameKey = normalizedMedicationName(name)
+        guard !cleanNameKey.isEmpty else { return false }
+
+        let medsWithSameName = allMeds.filter {
+            normalizedMedicationName($0.name) == cleanNameKey
+        }
+
+        // Preguntar si es un medicamento nuevo en el botiquín.
+        if medsWithSameName.isEmpty {
+            return true
+        }
+
+        // Preguntar también si no hay existencias (0) y aún no está en la lista de compra.
+        return medsWithSameName.contains { med in
+            med.shoppingCartRemainingDoses == 0 && !med.inShoppingCart
+        }
+    }
+
     private func save(addToCartOnCreate: Bool) {
+        if shouldBlockScheduledDuplicateOnCreate() {
+            showDuplicateScheduledMedicationAlert = true
+            return
+        }
+
         let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let chosenDate = Calendar.current.startOfDay(for: startDate)
         let kind = effectiveKind
+        let previousScheduleSignature: ScheduledSignature? = medication.map { scheduledSignature(for: $0) }
 
         let targetMed: Medication
         if let med = medication {
@@ -840,9 +913,124 @@ struct EditMedicationView: View {
             upsertOccasionalPastLogIfNeeded(for: targetMed, date: chosenDate)
         }
 
+        if kind == .scheduled, targetMed.isActive {
+            let scheduleChanged = previousScheduleSignature.map { $0 != scheduledSignature(for: targetMed) } ?? true
+            if scheduleChanged {
+                rebuildScheduledLogsForCurrentConfiguration(for: targetMed)
+            } else {
+                cleanupScheduledLogsForCurrentConfiguration(for: targetMed)
+            }
+        }
+
         try? modelContext.save()
+        NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
+
+        if kind == .scheduled,
+           targetMed.isActive,
+           let configuredStartDate = targetMed.startDateRaw {
+            let cal = Calendar.current
+            let start = cal.startOfDay(for: configuredStartDate)
+            let today = cal.startOfDay(for: Date())
+            if start <= today {
+                try? LogService.ensureLogs(from: start, to: today, modelContext: modelContext)
+            }
+        }
+
         syncOccasionalReminder(for: targetMed)
         dismiss()
+    }
+
+    private func cleanupScheduledLogsForCurrentConfiguration(for medication: Medication) {
+        guard medication.kind == .scheduled else { return }
+        guard medication.isActive else { return }
+        guard let configuredStartDate = medication.startDateRaw else { return }
+
+        let cal = Calendar.current
+        let startKey = cal.startOfDay(for: configuredStartDate)
+        let todayKey = cal.startOfDay(for: Date())
+        let endKey = medication.endDate.map { cal.startOfDay(for: $0) }
+        let logs = (try? modelContext.fetch(FetchDescriptor<IntakeLog>())) ?? allLogs
+
+        for log in logs where log.medicationID == medication.id {
+            let dayKey = cal.startOfDay(for: log.dateKey)
+
+            // Mantener historial tomado; limpiar solo restos automáticos no tomados.
+            if log.isTaken { continue }
+
+            if dayKey < startKey {
+                modelContext.delete(log)
+                continue
+            }
+
+            if let endKey, dayKey > endKey {
+                modelContext.delete(log)
+                continue
+            }
+
+            // En futuro, eliminar cualquier fecha que ya no encaje con la pauta actual.
+            if dayKey >= todayKey, !medication.isDue(on: dayKey, calendar: cal) {
+                modelContext.delete(log)
+            }
+        }
+    }
+
+    private func rebuildScheduledLogsForCurrentConfiguration(for medication: Medication) {
+        guard medication.kind == .scheduled else { return }
+        guard medication.isActive else { return }
+        guard let configuredStartDate = medication.startDateRaw else { return }
+
+        let cal = Calendar.current
+        let startKey = cal.startOfDay(for: configuredStartDate)
+        let todayKey = cal.startOfDay(for: Date())
+        let logs = (try? modelContext.fetch(FetchDescriptor<IntakeLog>())) ?? allLogs
+
+        // Al cambiar pauta/fechas, rehacemos solo hasta hoy para evitar duplicados en histórico.
+        for log in logs where log.medicationID == medication.id {
+            let dayKey = cal.startOfDay(for: log.dateKey)
+            if dayKey <= todayKey {
+                modelContext.delete(log)
+            }
+        }
+
+        if startKey <= todayKey {
+            try? LogService.ensureLogs(from: startKey, to: todayKey, modelContext: modelContext)
+        }
+
+        // Limpia solo residuos futuros que ya no encajen con la pauta nueva.
+        cleanupScheduledLogsForCurrentConfiguration(for: medication)
+    }
+
+    private struct ScheduledSignature: Equatable {
+        let kind: MedicationKind
+        let isActive: Bool
+        let repeatUnit: RepeatUnit
+        let interval: Int
+        let startKey: Date?
+        let endKey: Date?
+    }
+
+    private func scheduledSignature(for medication: Medication) -> ScheduledSignature {
+        let cal = Calendar.current
+        return ScheduledSignature(
+            kind: medication.kind,
+            isActive: medication.isActive,
+            repeatUnit: medication.repeatUnit,
+            interval: medication.interval,
+            startKey: medication.startDateRaw.map { cal.startOfDay(for: $0) },
+            endKey: medication.endDate.map { cal.startOfDay(for: $0) }
+        )
+    }
+
+    private func shouldBlockScheduledDuplicateOnCreate() -> Bool {
+        guard medication == nil else { return false }
+        guard effectiveKind == .scheduled else { return false }
+
+        let cleanNameKey = normalizedMedicationName(name)
+        guard !cleanNameKey.isEmpty else { return false }
+
+        return allMeds.contains {
+            $0.kind == .scheduled && normalizedMedicationName($0.name) == cleanNameKey
+        }
     }
 
     private func closePhotoPicker() {
@@ -966,17 +1154,12 @@ struct EditMedicationView: View {
     }
 
     private func toggleHistoryStatus(for log: IntakeLog) {
-        let cal = Calendar.current
         if log.isTaken {
             log.isTaken = false
             log.takenAt = nil
         } else {
-            let nowHM = cal.dateComponents([.hour, .minute], from: Date())
-            var comps = cal.dateComponents([.year, .month, .day], from: cal.startOfDay(for: log.dateKey))
-            comps.hour = nowHM.hour
-            comps.minute = nowHM.minute
             log.isTaken = true
-            log.takenAt = cal.date(from: comps) ?? log.dateKey
+            log.takenAt = nil
         }
         try? modelContext.save()
     }
@@ -987,10 +1170,93 @@ struct EditMedicationView: View {
         historyLogForActions = nil
     }
 
+    private func addOccasionalIntakeToday(for med: Medication) {
+        let cal = Calendar.current
+        let now = Date()
+        let todayKey = cal.startOfDay(for: now)
+        let nameKey = normalizedMedicationName(med.name)
+        let siblingOccasionalMeds = allMeds.filter {
+            $0.kind == .occasional && normalizedMedicationName($0.name) == nameKey
+        }
+
+        let todayMed = siblingOccasionalMeds.first(where: { sibling in
+            guard let start = sibling.startDateRaw else { return false }
+            return cal.isDate(start, inSameDayAs: todayKey)
+        })
+
+        let targetMed: Medication
+        if let todayMed {
+            todayMed.isActive = true
+            todayMed.startDate = todayKey
+            targetMed = todayMed
+            occasionalTodayIntakeWasUpdated = true
+        } else {
+            let newMed = Medication(
+                name: med.name,
+                note: med.note,
+                isActive: true,
+                kind: .occasional,
+                repeatUnit: .day,
+                interval: 1,
+                startDate: todayKey,
+                endDate: nil
+            )
+            newMed.sortOrder = med.sortOrder ?? ((allMeds.map { $0.sortOrder ?? 0 }.max()) ?? -1) + 1
+            newMed.photoData = med.photoData
+            newMed.cimaNRegistro = med.cimaNRegistro
+            newMed.cimaCN = med.cimaCN
+            newMed.cimaNombreCompleto = med.cimaNombreCompleto
+            newMed.cimaPrincipioActivo = med.cimaPrincipioActivo
+            newMed.cimaLaboratorio = med.cimaLaboratorio
+            newMed.cimaProspectoURL = med.cimaProspectoURL
+            newMed.occasionalReminderEnabled = false
+            newMed.occasionalReminderHour = nil
+            newMed.occasionalReminderMinute = nil
+            modelContext.insert(newMed)
+            targetMed = newMed
+            occasionalTodayIntakeWasUpdated = false
+        }
+
+        if let existing = allLogs.first(where: { $0.medicationID == targetMed.id && cal.isDate($0.dateKey, inSameDayAs: todayKey) }) {
+            existing.isTaken = true
+            existing.takenAt = now
+        } else {
+            modelContext.insert(IntakeLog(medicationID: targetMed.id, dateKey: todayKey, isTaken: true, takenAt: now))
+        }
+
+        try? modelContext.save()
+
+        occasionalTodayIntakeTime = now
+        showOccasionalTodayIntakeAlert = true
+    }
+
     private func normalizedMedicationName(_ name: String) -> String {
         name
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+    }
+
+    private func ensureScheduledHistoryCoverageIfNeeded(for medication: Medication) {
+        guard medication.kind == .scheduled else { return }
+        guard medication.isActive else { return }
+        guard let configuredStartDate = medication.startDateRaw else { return }
+
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+
+        let lookbackDays: Int
+        switch medication.repeatUnit {
+        case .day:
+            lookbackDays = maxHistoryItems * max(1, medication.interval) + 7
+        case .month:
+            lookbackDays = maxHistoryItems * max(1, medication.interval) * 31 + 31
+        }
+
+        let earliestNeeded = cal.date(byAdding: .day, value: -lookbackDays, to: today) ?? today
+        let start = max(cal.startOfDay(for: configuredStartDate), cal.startOfDay(for: earliestNeeded))
+        guard start <= today else { return }
+
+        try? LogService.ensureLogs(from: start, to: today, modelContext: modelContext)
     }
 
     private func syncOccasionalReminder(for med: Medication) {

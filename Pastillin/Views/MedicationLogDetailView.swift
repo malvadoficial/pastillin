@@ -15,6 +15,7 @@ struct MedicationLogDetailView: View {
     @Query private var medications: [Medication]
     @Query private var allLogs: [IntakeLog]
     @Query private var appSettings: [AppSettings]
+    @AppStorage("selectedTab") private var selectedTab: AppTab = .today
     @AppStorage("shoppingCartDisclaimerShown") private var shoppingCartDisclaimerShown: Bool = false
 
     let medication: Medication
@@ -22,7 +23,6 @@ struct MedicationLogDetailView: View {
     @Bindable var log: IntakeLog  // el log de ese día para esa medicina
     @State private var showRemoveForDayConfirmation = false
     @State private var showDeleteOccasionalConfirmation = false
-    @State private var showShoppingCart = false
     @State private var showShoppingDisclaimerAlert = false
     @State private var pendingAddToCart = false
     @State private var pendingOpenCart = false
@@ -179,12 +179,13 @@ struct MedicationLogDetailView: View {
                         Button(role: .destructive) {
                             showDeleteOccasionalConfirmation = true
                         } label: {
-                            Text(L10n.tr("edit_delete_medication"))
+                            Text(L10n.tr("detail_delete_intake"))
                                 .frame(maxWidth: .infinity, alignment: .center)
                         }
                     }
                 }
             }
+            .textSelection(.enabled)
             .navigationTitle(L10n.tr("detail_title"))
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -206,18 +207,13 @@ struct MedicationLogDetailView: View {
             } message: {
                 Text(L10n.tr("detail_remove_for_day_message"))
             }
-            .alert(L10n.tr("edit_delete_title"), isPresented: $showDeleteOccasionalConfirmation) {
+            .alert(L10n.tr("detail_delete_intake_title"), isPresented: $showDeleteOccasionalConfirmation) {
                 Button(L10n.tr("button_cancel"), role: .cancel) {}
                 Button(L10n.tr("edit_delete_confirm"), role: .destructive) {
                     deleteOccasionalMedication()
                 }
             } message: {
-                Text(L10n.tr("edit_delete_message"))
-            }
-            .sheet(isPresented: $showShoppingCart) {
-                NavigationStack {
-                    ShoppingCartView()
-                }
+                Text(L10n.tr("detail_delete_intake_message"))
             }
             .alert(L10n.tr("cart_disclaimer_title"), isPresented: $showShoppingDisclaimerAlert) {
                 Button(L10n.tr("cart_disclaimer_understood")) {
@@ -236,7 +232,8 @@ struct MedicationLogDetailView: View {
 
     private func requestCartOpen() {
         if shoppingCartDisclaimerShown {
-            showShoppingCart = true
+            selectedTab = .cart
+            dismiss()
             return
         }
         pendingOpenCart = true
@@ -260,7 +257,8 @@ struct MedicationLogDetailView: View {
 
     private func runPendingCartAction() {
         if pendingOpenCart {
-            showShoppingCart = true
+            selectedTab = .cart
+            dismiss()
         } else if pendingAddToCart {
             medication.inShoppingCart = true
             if medication.shoppingCartSortOrder == nil {
@@ -301,6 +299,7 @@ struct MedicationLogDetailView: View {
                     log.takenAt = nil
                 }
                 try? modelContext.save()
+                NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
             }
         )
     }
@@ -319,6 +318,7 @@ struct MedicationLogDetailView: View {
 
                 log.takenAt = final
                 try? modelContext.save()
+                NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
             }
         )
     }
@@ -374,6 +374,7 @@ struct MedicationLogDetailView: View {
         }
 
         try? modelContext.save()
+        NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
     }
 
     @ViewBuilder
@@ -401,6 +402,7 @@ struct MedicationLogDetailView: View {
         medication.setSkipped(true, on: dayKey)
         modelContext.delete(log)
         try? modelContext.save()
+        NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
         dismiss()
     }
 
@@ -412,6 +414,7 @@ struct MedicationLogDetailView: View {
         NotificationService.cancelOccasionalReminder(medicationID: medication.id)
         modelContext.delete(medication)
         try? modelContext.save()
+        NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
         dismiss()
     }
 

@@ -19,7 +19,7 @@ enum PendingIntakeService {
             guard !log.isTaken else { return nil }
             guard let med = medsByID[log.medicationID] else { return nil }
             guard med.kind == .scheduled else { return nil }
-            guard isEligibleForPending(medication: med, calendar: calendar) else { return nil }
+            guard isEligibleForPending(medication: med) else { return nil }
             return (med.id, log)
         }
 
@@ -48,34 +48,9 @@ enum PendingIntakeService {
         return Set(validMedicationIDs).count
     }
 
-    private static func isEligibleForPending(medication: Medication, calendar: Calendar) -> Bool {
-        guard let configuredStartDate = medication.startDateRaw else {
-            return false
-        }
-
-        guard medication.repeatUnit != .day || medication.interval > 1 else {
-            return false
-        }
-
-        guard medication.kind == .scheduled else {
-            return false
-        }
-
-        guard let endDate = medication.endDate else {
-            return true
-        }
-
-        let startKey = calendar.startOfDay(for: configuredStartDate)
-        let endKey = calendar.startOfDay(for: endDate)
-        guard endKey > startKey else { return false }
-
-        switch medication.repeatUnit {
-        case .day:
-            let diff = calendar.dateComponents([.day], from: startKey, to: endKey).day ?? 0
-            return diff >= medication.interval
-        case .month:
-            guard let next = calendar.date(byAdding: .month, value: medication.interval, to: startKey) else { return false }
-            return calendar.startOfDay(for: next) <= endKey
-        }
+    private static func isEligibleForPending(medication: Medication) -> Bool {
+        guard medication.kind == .scheduled else { return false }
+        guard medication.startDateRaw != nil else { return false }
+        return !(medication.repeatUnit == .day && medication.interval == 1)
     }
 }

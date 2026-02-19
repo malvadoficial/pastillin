@@ -93,6 +93,7 @@ struct DayDetailView: View {
                     }
                 }
             }
+            .textSelection(.enabled)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
@@ -132,11 +133,17 @@ struct DayDetailView: View {
                 }
             }
             .onAppear {
-                // Crea logs para ese día (por defecto No tomado) para todas las medicinas que tocan
-                try? LogService.ensureLogs(for: dayKey, modelContext: modelContext)
+                // Solo crea logs automáticos en hoy/futuro; nunca en pasado.
+                let today = Calendar.current.startOfDay(for: Date())
+                if dayKey >= today {
+                    try? LogService.ensureLogs(for: dayKey, modelContext: modelContext)
+                }
             }
             .onChange(of: medications.count) { _, _ in
-                try? LogService.ensureLogs(for: dayKey, modelContext: modelContext)
+                let today = Calendar.current.startOfDay(for: Date())
+                if dayKey >= today {
+                    try? LogService.ensureLogs(for: dayKey, modelContext: modelContext)
+                }
             }
             .sheet(item: $selected) { wrap in
                 MedicationLogDetailView(
@@ -169,23 +176,43 @@ struct DayDetailView: View {
 
     private func rowsForDay(_ dayKey: Date) -> [(med: Medication, log: IntakeLog)] {
         let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let dayLogs = logs.filter { cal.isDate($0.dateKey, inSameDayAs: dayKey) }
+        let medsByID = Dictionary(uniqueKeysWithValues: medications.map { ($0.id, $0) })
+
+        if dayKey < today {
+            var seenIDs = Set<UUID>()
+            let medsToShow = dayLogs.compactMap { log -> Medication? in
+                guard seenIDs.insert(log.medicationID).inserted else { return nil }
+                return medsByID[log.medicationID]
+            }
+            .sorted {
+                let o0 = $0.sortOrder ?? 0
+                let o1 = $1.sortOrder ?? 0
+                if o0 != o1 { return o0 < o1 }
+                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+
+            return medsToShow.compactMap { med in
+                guard let log = dayLogs.first(where: { $0.medicationID == med.id }) else { return nil }
+                return (med: med, log: log)
+            }
+        }
 
         let active = medications.filter { $0.isActive }
         let due = active
             .filter { $0.isDue(on: dayKey, calendar: cal) }
-            .sorted {
+        let medsToShow = Set(due.map(\.id)).compactMap { medsByID[$0] }.sorted {
             let o0 = $0.sortOrder ?? 0
             let o1 = $1.sortOrder ?? 0
             if o0 != o1 { return o0 < o1 }
             return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
 
-        let dayLogs = logs.filter { cal.isDate($0.dateKey, inSameDayAs: dayKey) }
-
-        // onAppear asegura que existen; aun así, por seguridad, solo devolvemos los que tienen log
-        return due.compactMap { med in
+        // Solo se devuelven filas que tienen log para ese día.
+        return medsToShow.compactMap { med in
             guard let log = dayLogs.first(where: { $0.medicationID == med.id }) else { return nil }
-            return (med, log)
+            return (med: med, log: log)
         }
     }
 
@@ -229,6 +256,7 @@ struct DayDetailView: View {
         }
 
         try? modelContext.save()
+        NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
     }
 
     private func deleteScheduledIntakeForSelectedDay() {
@@ -243,6 +271,7 @@ struct DayDetailView: View {
         medication.setSkipped(true, on: candidate.dayKey)
         modelContext.delete(log)
         try? modelContext.save()
+        NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
     }
 
     // MARK: - UI helpers

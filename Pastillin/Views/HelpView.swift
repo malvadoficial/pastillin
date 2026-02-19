@@ -50,6 +50,7 @@ struct HelpView: View {
                 Text(L10n.tr("help_note_mac"))
             }
         }
+        .textSelection(.enabled)
         .safeAreaPadding(.bottom, 84)
         .navigationTitle(L10n.tr("help_title"))
         .navigationBarTitleDisplayMode(.inline)

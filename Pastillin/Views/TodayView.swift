@@ -13,12 +13,10 @@ struct TodayView: View {
     @Query private var medications: [Medication]
     @Query private var logs: [IntakeLog]
     @AppStorage("selectedTab") private var selectedTab: AppTab = .today
-    @AppStorage("openShoppingCartFromToday") private var openShoppingCartFromToday: Bool = false
+    @AppStorage("lastTabBeforeNoTaken") private var lastTabBeforeNoTakenRaw: String = AppTab.today.rawValue
     @AppStorage("shoppingCartDisclaimerShown") private var shoppingCartDisclaimerShown: Bool = false
 
     @State private var rows: [TodayRow] = []
-    @State private var pendingCount: Int = 0
-    @State private var showShoppingCart = false
     @State private var showShoppingDisclaimerAlert = false
     @State private var selected: SelectedWrapper? = nil
     @State private var showingAddTypeDialog = false
@@ -40,6 +38,12 @@ struct TodayView: View {
     private var shoppingCartCount: Int {
         medications.filter { $0.inShoppingCart }.count
     }
+    private var pendingCount: Int {
+        PendingIntakeService.pendingMedicationCount(
+            medications: medications,
+            logs: logs
+        )
+    }
 
     var body: some View {
         NavigationStack {
@@ -52,6 +56,7 @@ struct TodayView: View {
 
                     if pendingCount > 0 {
                         Button {
+                            lastTabBeforeNoTakenRaw = AppTab.today.rawValue
                             selectedTab = .noTaken
                         } label: {
                             Text(String(format: L10n.tr("today_pending_notice_format"), pendingCount))
@@ -65,8 +70,7 @@ struct TodayView: View {
 
                     if shoppingCartCount > 0 {
                         Button {
-                            openShoppingCartFromToday = true
-                            selectedTab = .medications
+                            selectedTab = .cart
                         } label: {
                             Text(L10n.tr("today_shopping_notice"))
                                 .font(.subheadline.weight(.semibold))
@@ -166,6 +170,7 @@ struct TodayView: View {
                     }
                 }
             }
+            .textSelection(.enabled)
             .safeAreaPadding(.bottom, 84)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -178,6 +183,7 @@ struct TodayView: View {
                 }
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
+                        lastTabBeforeNoTakenRaw = AppTab.today.rawValue
                         selectedTab = .noTaken
                     } label: {
                         PendingIntakesIconView(count: pendingCount)
@@ -188,7 +194,7 @@ struct TodayView: View {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button {
                         if shoppingCartDisclaimerShown {
-                            showShoppingCart = true
+                            selectedTab = .cart
                         } else {
                             showShoppingDisclaimerAlert = true
                         }
@@ -310,15 +316,10 @@ struct TodayView: View {
                         }
                 }
             }
-            .sheet(isPresented: $showShoppingCart) {
-                NavigationStack {
-                    ShoppingCartView()
-                }
-            }
             .alert(L10n.tr("cart_disclaimer_title"), isPresented: $showShoppingDisclaimerAlert) {
                 Button(L10n.tr("cart_disclaimer_understood")) {
                     shoppingCartDisclaimerShown = true
-                    showShoppingCart = true
+                    selectedTab = .cart
                 }
             } message: {
                 Text(L10n.tr("cart_disclaimer_message"))
@@ -389,23 +390,6 @@ struct TodayView: View {
             }
             return $0.medication.name.localizedCaseInsensitiveCompare($1.medication.name) == .orderedAscending
         }
-
-        refreshPendingCount()
-    }
-
-    private func refreshPendingCount() {
-        let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
-        let start = cal.date(byAdding: .day, value: -29, to: today) ?? today
-        try? LogService.ensureLogs(from: start, to: today, modelContext: modelContext)
-
-        pendingCount = PendingIntakeService.pendingMedicationCount(
-            medications: medications,
-            logs: logs,
-            referenceDate: today,
-            lookbackDays: 30,
-            calendar: cal
-        )
     }
 
     @ViewBuilder

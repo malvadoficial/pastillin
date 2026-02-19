@@ -6,6 +6,9 @@ struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var settings: [AppSettings]
     @AppStorage("legalDisclaimerAccepted") private var legalDisclaimerAccepted = false
+    @AppStorage("showOnboardingTutorialNow") private var showOnboardingTutorialNow = false
+    @AppStorage("deleteAllDataNow") private var deleteAllDataNow = false
+    @AppStorage("deleteAllDataCompleted") private var deleteAllDataCompleted = false
 
     @State private var reminderTimes: [Date] = []
     @State private var enabled: Bool = false
@@ -139,6 +142,16 @@ struct SettingsView: View {
                 }
 
                 Section(L10n.tr("settings_section_help")) {
+                    Button {
+                        // Fuerza transición para que RootView reciba siempre el cambio.
+                        showOnboardingTutorialNow = false
+                        DispatchQueue.main.async {
+                            showOnboardingTutorialNow = true
+                        }
+                    } label: {
+                        Label(L10n.tr("settings_open_tutorial"), systemImage: "book.pages")
+                    }
+
                     NavigationLink {
                         HelpView()
                     } label: {
@@ -195,6 +208,16 @@ struct SettingsView: View {
                 }
             }
             .onAppear { loadOrCreateSettings() }
+            .onChange(of: deleteAllDataCompleted) { _, newValue in
+                guard newValue else { return }
+                deleteAllDataCompleted = false
+                legalDisclaimerAccepted = false
+                loadOrCreateSettings()
+                reportURL = nil
+                backupURL = nil
+                errorText = nil
+                showDeleteAllSuccessAlert = true
+            }
             .fileImporter(
                 isPresented: $showingBackupImporter,
                 allowedContentTypes: [.json],
@@ -448,17 +471,8 @@ struct SettingsView: View {
     }
 
     private func deleteAllDataIfConfirmed() {
-        do {
-            try BackupService.clearAllData(modelContext: modelContext)
-            legalDisclaimerAccepted = false
-            loadOrCreateSettings()
-            reportURL = nil
-            backupURL = nil
-            errorText = nil
-            showDeleteAllSuccessAlert = true
-        } catch {
-            errorText = L10n.tr("error_delete_all_data")
-        }
+        errorText = nil
+        deleteAllDataNow = true
     }
 }
 

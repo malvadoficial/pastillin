@@ -30,6 +30,7 @@ struct NoTakenView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var medications: [Medication]
     @Query private var logs: [IntakeLog]
+    @AppStorage("selectedTab") private var selectedTab: AppTab = .noTaken
     @AppStorage("shoppingCartDisclaimerShown") private var shoppingCartDisclaimerShown: Bool = false
 
     @State private var rows: [MissedIntakeRow] = []
@@ -37,144 +38,107 @@ struct NoTakenView: View {
     @State private var pendingMoveRow: MissedIntakeRow? = nil
     @State private var pendingTakenDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var selectedRange: MissedRange = .days30
-    @State private var showShoppingCart = false
     @State private var showShoppingDisclaimerAlert = false
     private let emptyArtworkHeight: CGFloat = 180
 
     var body: some View {
-        NavigationStack {
-            List {
+        List {
+            if rows.isEmpty {
                 Section {
-                    Picker(L10n.tr("missed_range_title"), selection: $selectedRange) {
-                        ForEach(MissedRange.allCases) { value in
-                            Text(L10n.tr(value.titleKey)).tag(value)
-                        }
+                    VStack(spacing: 12) {
+                        pendingEmptyStateArtwork
+
+                        Text(L10n.tr("missed_empty"))
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .multilineTextAlignment(.center)
                     }
-                    .pickerStyle(.segmented)
+                    .padding(.vertical, 8)
                 }
+            } else {
+                ForEach(rows) { row in
+                    Button {
+                        selectedRow = row
+                    } label: {
+                        HStack(spacing: 12) {
+                            medicationThumbnail(for: row.medication)
 
-                if rows.isEmpty {
-                    Section {
-                        VStack(spacing: 12) {
-                            pendingEmptyStateArtwork
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(row.medication.name)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.primary)
 
-                            Text(L10n.tr("missed_empty"))
-                                .foregroundStyle(.secondary)
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                .multilineTextAlignment(.center)
-                        }
-                        .padding(.vertical, 8)
-                    }
-                } else {
-                    ForEach(rows) { row in
-                        Button {
-                            selectedRow = row
-                        } label: {
-                            HStack(spacing: 12) {
-                                medicationThumbnail(for: row.medication)
-
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(row.medication.name)
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(.primary)
-
-                                    Text(Fmt.dayLong(row.log.dateKey))
-                                        .font(.footnote)
-                                        .foregroundStyle(.secondary)
-                                }
-
-                                Spacer()
-
-                                Image(systemName: "chevron.right")
-                                    .font(.caption.weight(.semibold))
+                                Text(Fmt.dayLong(row.log.dateKey))
+                                    .font(.footnote)
                                     .foregroundStyle(.secondary)
                             }
-                            .padding(.vertical, 4)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-            .safeAreaPadding(.bottom, 84)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    NavigationTitleWithIcon(
-                        title: L10n.tr("missed_title"),
-                        systemImage: "exclamationmark.triangle.fill",
-                        color: AppTheme.brandRed
-                    )
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        if shoppingCartDisclaimerShown {
-                            showShoppingCart = true
-                        } else {
-                            showShoppingDisclaimerAlert = true
-                        }
-                    } label: {
-                        ShoppingCartIconView(count: shoppingCartCount)
-                    }
-                }
-            }
-            .overlay {
-                if let row = selectedRow {
-                    MissedIntakeActionsOverlay(
-                        medicationName: row.medication.name,
-                        dayText: Fmt.dayLong(row.log.dateKey),
-                        onTaken: { markTaken(row) },
-                        onNotTaken: { markNotTaken(row) },
-                        onTakenToday: {
-                            pendingTakenDate = Calendar.current.startOfDay(for: Date())
-                            pendingMoveRow = row
-                            selectedRow = nil
-                        },
-                        showTakenOtherDayAction: isClosestPendingToToday(for: row),
-                        onCancel: { selectedRow = nil }
-                    )
-                    .zIndex(2)
-                }
 
-                if pendingMoveRow != nil {
-                    MissedTakenOnDateOverlay(
-                        selectedDate: $pendingTakenDate,
-                        minDate: pendingMoveMinDate,
-                        maxDate: pendingMoveMaxDate,
-                        onConfirm: {
-                            if let row = pendingMoveRow {
-                                markTakenTodayAndMoveFuture(row)
-                            }
-                        },
-                        onCancel: { pendingMoveRow = nil }
-                    )
-                    .zIndex(3)
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
-            .onAppear {
-                refreshData()
+        }
+        .textSelection(.enabled)
+        .safeAreaPadding(.bottom, 84)
+        .overlay {
+            if let row = selectedRow {
+                MissedIntakeActionsOverlay(
+                    medicationName: row.medication.name,
+                    dayText: Fmt.dayLong(row.log.dateKey),
+                    onTaken: { markTaken(row) },
+                    onNotTaken: { markNotTaken(row) },
+                    onTakenToday: {
+                        pendingTakenDate = Calendar.current.startOfDay(for: Date())
+                        pendingMoveRow = row
+                        selectedRow = nil
+                    },
+                    showTakenOtherDayAction: isClosestPendingToToday(for: row),
+                    onCancel: { selectedRow = nil }
+                )
+                .zIndex(2)
             }
-            .onChange(of: selectedRange) { _, _ in
-                refreshData()
+
+            if pendingMoveRow != nil {
+                MissedTakenOnDateOverlay(
+                    selectedDate: $pendingTakenDate,
+                    minDate: pendingMoveMinDate,
+                    maxDate: pendingMoveMaxDate,
+                    onConfirm: {
+                        if let row = pendingMoveRow {
+                            markTakenTodayAndMoveFuture(row)
+                        }
+                    },
+                    onCancel: { pendingMoveRow = nil }
+                )
+                .zIndex(3)
             }
-            .onChange(of: logs.count) { _, _ in
-                reloadRows()
+        }
+        .onAppear {
+            refreshData()
+        }
+        .onChange(of: selectedRange) { _, _ in
+            refreshData()
+        }
+        .onChange(of: logs.count) { _, _ in
+            reloadRows()
+        }
+        .onChange(of: medications.count) { _, _ in
+            reloadRows()
+        }
+        .alert(L10n.tr("cart_disclaimer_title"), isPresented: $showShoppingDisclaimerAlert) {
+            Button(L10n.tr("cart_disclaimer_understood")) {
+                shoppingCartDisclaimerShown = true
+                selectedTab = .cart
             }
-            .onChange(of: medications.count) { _, _ in
-                reloadRows()
-            }
-            .sheet(isPresented: $showShoppingCart) {
-                NavigationStack {
-                    ShoppingCartView()
-                }
-            }
-            .alert(L10n.tr("cart_disclaimer_title"), isPresented: $showShoppingDisclaimerAlert) {
-                Button(L10n.tr("cart_disclaimer_understood")) {
-                    shoppingCartDisclaimerShown = true
-                    showShoppingCart = true
-                }
-            } message: {
-                Text(L10n.tr("cart_disclaimer_message"))
-            }
+        } message: {
+            Text(L10n.tr("cart_disclaimer_message"))
         }
     }
 
@@ -210,11 +174,7 @@ struct NoTakenView: View {
     }
 
     private func refreshData() {
-        let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
-        let start = cal.date(byAdding: .day, value: -(selectedRange.rawValue - 1), to: today) ?? today
-
-        try? LogService.ensureLogs(from: start, to: today, modelContext: modelContext)
+        try? LogService.ensureLogs(for: Date(), modelContext: modelContext)
         reloadRows()
     }
 
@@ -266,36 +226,9 @@ struct NoTakenView: View {
     }
 
     private func isEligibleMedication(_ medication: Medication) -> Bool {
-        guard let configuredStartDate = medication.startDateRaw else {
-            return false
-        }
-
-        guard medication.repeatUnit != .day || medication.interval > 1 else {
-            return false
-        }
-
-        guard medication.kind == .scheduled else {
-            return false
-        }
-
-        guard let endDate = medication.endDate else {
-            return true
-        }
-
-        let cal = Calendar.current
-        let startKey = cal.startOfDay(for: configuredStartDate)
-        let endKey = cal.startOfDay(for: endDate)
-
-        guard endKey > startKey else { return false }
-
-        switch medication.repeatUnit {
-        case .day:
-            let diff = cal.dateComponents([.day], from: startKey, to: endKey).day ?? 0
-            return diff >= medication.interval
-        case .month:
-            guard let next = cal.date(byAdding: .month, value: medication.interval, to: startKey) else { return false }
-            return cal.startOfDay(for: next) <= endKey
-        }
+        guard medication.kind == .scheduled else { return false }
+        guard medication.startDateRaw != nil else { return false }
+        return !(medication.repeatUnit == .day && medication.interval == 1)
     }
 
     private func markTaken(_ row: MissedIntakeRow) {
@@ -303,6 +236,7 @@ struct NoTakenView: View {
         row.log.isTaken = true
         row.log.takenAt = isToday ? Date() : nil
         try? modelContext.save()
+        NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
         selectedRow = nil
         pendingMoveRow = nil
         reloadRows()
@@ -311,6 +245,7 @@ struct NoTakenView: View {
     private func markNotTaken(_ row: MissedIntakeRow) {
         LogService.setTaken(false, for: row.log)
         try? modelContext.save()
+        NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
         selectedRow = nil
         pendingMoveRow = nil
         reloadRows()
@@ -330,8 +265,6 @@ struct NoTakenView: View {
         let clampedChosenDate = min(max(chosenDate, minDate), maxDate)
 
         let now = Date()
-        row.log.isTaken = true
-        row.log.takenAt = cal.isDateInToday(clampedChosenDate) ? now : nil
         try? LogService.moveFutureScheduleAfterTakenOnDate(
             medication: row.medication,
             selectedDay: row.log.dateKey,
@@ -341,6 +274,7 @@ struct NoTakenView: View {
             modelContext: modelContext
         )
         try? LogService.ensureLogs(for: now, modelContext: modelContext)
+        NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
 
         selectedRow = nil
         pendingMoveRow = nil

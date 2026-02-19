@@ -43,8 +43,9 @@
 "summary_end_format" = " · fin %@";
 "summary_start_line_format" = "Inicio %@";
 "summary_end_line_format" = "Fin %@";
-"summary_occasional_date_line_format" = "Fecha %@";
-"summary_chronic" = "Crónico";
+"summary_finished_line_format" = "Finalizado %@";
+"summary_occasional_date_line_format" = "Última toma %@";
+"summary_chronic" = "Sin fecha de fin";
 "summary_no_schedule" = "Sin pauta";
 "summary_no_date" = "Sin fecha";
 
@@ -71,7 +72,7 @@
 "edit_schedule_number" = "Número";
 "edit_stepper_every_format" = "Cada %d %@";
 "edit_date_start" = "Inicio";
-"edit_toggle_chronic" = "Crónico";
+"edit_toggle_chronic" = "Sin fecha de fin";
 "edit_date_end_included" = "Día de fin (Incluido)";
 "occasional_section_date" = "Fecha";
 "occasional_date" = "Fecha de toma";
@@ -79,6 +80,10 @@
 "occasional_reminder_toggle" = "Generar aviso";
 "occasional_reminder_time" = "Hora del aviso";
 "occasional_section_intakes" = "Tomas";
+"occasional_add_today_intake" = "Añadir toma Hoy";
+"occasional_add_today_intake_alert_title" = "Toma registrada";
+"occasional_add_today_intake_alert_message_created_format" = "Se ha registrado una toma para hoy (%@) a las %@.";
+"occasional_add_today_intake_alert_message_updated_format" = "Se ha actualizado la toma de hoy (%@) con la hora %@.";
 "edit_section_history_format" = "Historial (últimas %d)";
 "edit_title_new" = "Nueva medicina";
 "edit_title_new_occasional" = "Nuevo uso ocasional";
@@ -93,6 +98,8 @@
 "save_add_to_cart_prompt_message" = "¿Quieres añadir este medicamento a la lista de la compra?";
 "save_add_to_cart_yes" = "Sí, añadir";
 "save_add_to_cart_no" = "No, guardar sin añadir";
+"duplicate_scheduled_medication_title" = "Medicamento ya existente";
+"duplicate_scheduled_medication_message" = "Ya existe este medicamento como pautado en el botiquín. Si tu médico te ha prescrito de nuevo este tratamiento, edítalo desde el botiquín cambiando la fecha de inicio, la fecha de fin (si la tiene) y la pauta.";
 "button_save" = "Guardar";
 "button_edit" = "Editar";
 
@@ -116,6 +123,7 @@
 "day_empty" = "No tocaba nada";
 "status_taken_masc" = "Tomado";
 "status_not_taken_masc" = "No tomado";
+"button_back" = "Volver";
 "button_close" = "Cerrar";
 
 "detail_day_label_format" = "Día: %@";
@@ -132,6 +140,9 @@
 "detail_remove_for_day_title" = "Eliminar de este día";
 "detail_remove_for_day_message" = "Solo se eliminará este día. El tratamiento seguirá activo en otras fechas.";
 "detail_remove_for_day_confirm" = "Eliminar día";
+"detail_delete_intake" = "Eliminar toma";
+"detail_delete_intake_title" = "Eliminar toma";
+"detail_delete_intake_message" = "Esta acción no eliminará el medicamento del botiquín ni el historial.";
 
 "settings_title" = "Ajustes";
 "settings_section_reminder" = "Recordatorio diario";
@@ -165,7 +176,7 @@
 "report_not_taken" = "No tomado";
 "report_occasional_badge" = "De uso ocasional";
 "report_general_title" = "Datos generales de medicación";
-"report_general_chronic_section" = "Tratamientos crónicos";
+"report_general_chronic_section" = "Tratamientos sin fecha de fin";
 "report_general_scheduled_section" = "Tratamientos pautados (con fin)";
 "report_general_occasional_section" = "Medicamentos de uso ocasional";
 "report_general_line_chronic" = "%@ · inicio %@";
@@ -191,7 +202,52 @@
 "photo_choose_title" = "Selecciona una opción";
 
 "settings_section_help" = "Ayuda";
+"settings_open_tutorial" = "Ver tutorial inicial";
 "settings_open_help" = "Ver ayuda de la aplicación";
+
+"tutorial_title" = "Tutorial";
+"tutorial_page_cabinet_title" = "Sección Botiquín";
+"tutorial_cabinet_step_1" = "En la sección Botiquín tienes todos tus medicamentos: los que tomas ahora, los que ya has tomado y los que tomarás más adelante.";
+"tutorial_cabinet_step_2" = "Un medicamento puede ser pautado (cada día o cada ciertos días), sin fecha de fin o con fecha de finalización.";
+"tutorial_cabinet_step_3" = "Toda esa información la introduces al crear o editar el medicamento.";
+"tutorial_cabinet_step_4" = "Si un tratamiento pautado ya ha terminado (incluido hoy), verás \"Finalizado\" junto a su fecha de fin.";
+"tutorial_cabinet_step_5" = "En los medicamentos de uso ocasional verás la fecha de la última toma.";
+"tutorial_cabinet_step_6" = "Desde esta pantalla también puedes abrir la lista de la compra y añadir o quitar medicamentos del carrito.";
+"tutorial_cabinet_step_7" = "Si pasado un tiempo, por prescripción médica, tienes que volver a tomar un medicamento pautado que ya tomaste antes, lo mejor es editar el que ya tienes en Botiquín y actualizar su pauta con la nueva fecha de inicio y, si corresponde, la de fin. Así conservas el historial de tomas y se generan las próximas tomas automáticamente.";
+"tutorial_page_today_title" = "Sección Hoy";
+"tutorial_today_step_1" = "Aquí puedes ver los medicamentos que te tocan en el día de hoy.";
+"tutorial_today_step_2" = "Para marcar una toma como realizada, pulsa el botón de estado. Si la marca se hace hoy, se registra la hora actual automáticamente.";
+"tutorial_today_step_3" = "Si la tomaste a otra hora, pulsa sobre el medicamento para abrir el detalle y edita la hora de la toma.";
+"tutorial_today_step_4" = "Si un día necesitas tomar un medicamento de uso ocasional (por ejemplo, paracetamol), puedes registrarlo desde esta pantalla.";
+"tutorial_today_step_5" = "Si ese medicamento ocasional ya lo tienes en Botiquín, es más rápido hacerlo desde allí: abre el medicamento.";
+"tutorial_today_step_6" = "Pulsa \"Añadir toma Hoy\" para registrar la toma rápidamente.";
+"tutorial_page_calendar_title" = "Sección Calendario";
+"tutorial_calendar_step_1" = "Aquí podrás ver los días que tomaste todos los medicamentos: en azul; los días que no tomaste alguno: en amarillo; y los días que no tomaste ninguno: en rojo. En rojo también aparecerán los días futuros, en los que aún no has tomado los medicamentos que te corresponden.";
+"tutorial_calendar_step_2" = "Si pulsas sobre un día pasado, verás debajo del calendario la lista de medicamentos que tocaban ese día.";
+"tutorial_calendar_step_3" = "Si olvidaste marcar como tomado un medicamento en un día pasado, ve a ese día, abre el medicamento y, en la vista de detalle, márcalo como Tomado (o No tomado si te equivocaste). También podrás cambiar la hora a la que lo tomaste.";
+"tutorial_calendar_step_4" = "Otra opción es que pulses el icono del lápiz de la esquina superior izquierda y verás todas las tomas de ese día. Podrás marcar los medicamentos pulsando los botones de una manera más rápida.";
+"tutorial_page_pending_title" = "Sección Pendientes";
+"tutorial_pending_step_1" = "Arriba a la izquierda verás un triángulo con o sin un número que indica que hay medicamentos que debías tomar y olvidaste. Si lo pulsas irás a la sección Pendientes.";
+"tutorial_pending_step_2" = "Cuando pulses sobre una toma pendiente, se abrirá una ventana con acciones para esa toma.";
+"tutorial_pending_step_3" = "Podrás elegir entre: \"Sí la tomé\" o \"No la tomé\". Si eliges \"Sí la tomé\", la toma se marcará como tomada. Si eliges \"No la tomé\", se mantendrá como no tomada.";
+"tutorial_pending_step_4" = "También puedes elegir \"La tomé otro día\". En ese caso indicas la fecha real y Pastillín moverá esa toma a ese día y recalculará solo las tomas futuras para mantener la pauta.";
+"tutorial_page_cart_title" = "Sección Carrito";
+"tutorial_cart_step_1" = "La sección de Carrito es una lista de la compra que te ayudará a recordar qué medicamentos tienes que comprar y cuáles están a punto de acabarse.";
+"tutorial_cart_step_2" = "Cuando añades un medicamento nuevo al botiquín tendrás la oportunidad de agregarlo a tu carrito de la compra por si no lo tuvieras en casa.";
+"tutorial_cart_step_3" = "Cuando tengas algún medicamento en casa que debas ir a comprar, puedes añadirlo al carrito pulsando el icono que viste en la sección de Botiquín.";
+"tutorial_cart_step_4" = "En el botiquín puedes especificar las dosis que te quedan de ese medicamento. No es obligatorio. Pero así Pastillín te dirá cuándo se termina exactamente el medicamento y además podrás ver también un aviso en la Sección de Hoy recordándote que tienes medicamentos cerca de acabarse cuando se acerque el día.";
+"tutorial_cart_step_5" = "Recuerda: la aplicación no realiza compra de medicamentos, es solo una ayuda para la lista de la compra.";
+"tutorial_page_settings_title" = "Sección Ajustes";
+"tutorial_settings_step_1" = "En esta sección puedes activar los recordatorios diarios (hasta 3). A esa hora recibirás una notificación que, al pulsarla, te llevará a la pestaña Hoy para que veas e introduzcas los medicamentos que has tomado.";
+"tutorial_settings_step_2" = "Tienes también la opción para desactivar la integración con la Agencia Española del Medicamento y Productos Sanitarios. Eso hará que no tengas autocompletado de nombres ni la información de los medicamentos.";
+"tutorial_settings_step_3" = "Justo debajo podrás entrar en la sección de búsqueda en AEMPS. Ahí puedes hacer consultas a la base de datos de la Agencia y obtener información de los medicamentos (nombre, principio activo, si necesita receta, ver el prospecto, el formato...). También podrás añadir medicamentos al Botiquín desde ahí.";
+"tutorial_settings_step_4" = "En esta misma sección puedes generar un informe con los medicamentos y tomas para el periodo que especifiques.";
+"tutorial_settings_step_5" = "Puedes también generar una copia de seguridad o cargar una anterior.";
+"tutorial_settings_step_6" = "Por último tienes varias opciones auxiliares: ver este tutorial, ver la ayuda de la aplicación, borrar todos los datos (MUCHO CUIDADO CON ESTO), el Aviso Legal y algo de información sobre mí.";
+"tutorial_prev" = "Anterior";
+"tutorial_next" = "Siguiente";
+"tutorial_finish" = "Finalizar";
+"tutorial_end_reminder" = "Recuerda: puedes volver a ver este tutorial desde la sección Ajustes.";
 
 "help_title" = "Ayuda";
 "help_intro" = "Esta app te ayuda a organizar tus tratamientos en Hoy, Calendario y Botiquín, marcar tomas, gestionar pendientes, preparar la lista de la compra y consultar información oficial de AEMPS.";

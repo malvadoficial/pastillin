@@ -28,6 +28,7 @@ enum LogService {
             modelContext.insert(IntakeLog(medicationID: med.id, dateKey: key, isTaken: false, takenAt: nil))
         }
         try modelContext.save()
+        NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
     }
 
     static func ensureLogs(from startDate: Date, to endDate: Date, modelContext: ModelContext) throws {
@@ -56,6 +57,7 @@ enum LogService {
         }
 
         try modelContext.save()
+        NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
     }
 
     static func moveFutureScheduleAfterTakenOnDate(
@@ -80,25 +82,97 @@ enum LogService {
             medication.startDate = cal.startOfDay(for: shiftedStart)
         }
 
+        let selectedDayExistingLog = allLogs.first {
+            $0.medicationID == medication.id && cal.isDate($0.dateKey, inSameDayAs: selectedKey)
+        }
         let takenOnExistingLog = allLogs.first {
             $0.medicationID == medication.id && cal.isDate($0.dateKey, inSameDayAs: takenOnKey)
         }
 
-        for log in allLogs where log.medicationID == medication.id && log.dateKey >= takenOnKey && log.id != takenOnExistingLog?.id {
+        let takenAtValue = cal.isDateInToday(takenOnKey) ? now : nil
+        let movedLogID: UUID
+
+        // 1) Mover solo la toma origen al día indicado por el usuario.
+        if let selectedDayExistingLog,
+           let takenOnExistingLog,
+           selectedDayExistingLog.id != takenOnExistingLog.id {
+            takenOnExistingLog.isTaken = true
+            takenOnExistingLog.takenAt = takenAtValue
+            modelContext.delete(selectedDayExistingLog)
+            movedLogID = takenOnExistingLog.id
+        } else if let selectedDayExistingLog {
+            selectedDayExistingLog.dateKey = takenOnKey
+            selectedDayExistingLog.isTaken = true
+            selectedDayExistingLog.takenAt = takenAtValue
+            movedLogID = selectedDayExistingLog.id
+        } else if let takenOnExistingLog {
+            takenOnExistingLog.isTaken = true
+            takenOnExistingLog.takenAt = takenAtValue
+            movedLogID = takenOnExistingLog.id
+        } else {
+            let newLog = IntakeLog(medicationID: medication.id, dateKey: takenOnKey, isTaken: true, takenAt: takenAtValue)
+            modelContext.insert(newLog)
+            movedLogID = newLog.id
+        }
+
+        // 2) Borrar solo tomas futuras (pasado intacto).
+        let todayKey = cal.startOfDay(for: now)
+        for log in allLogs
+        where log.medicationID == medication.id
+            && log.dateKey > todayKey
+            && log.dateKey >= takenOnKey
+            && log.id != movedLogID {
             modelContext.delete(log)
         }
 
-        if medication.isDue(on: takenOnKey, calendar: cal) {
-            let takenAtValue = cal.isDateInToday(takenOnKey) ? now : nil
-            if let takenOnExistingLog {
-                takenOnExistingLog.isTaken = true
-                takenOnExistingLog.takenAt = takenAtValue
-            } else {
-                modelContext.insert(IntakeLog(medicationID: medication.id, dateKey: takenOnKey, isTaken: true, takenAt: takenAtValue))
+        // 3) Regenerar futuras según la pauta actualizada.
+        guard let tomorrowKey = cal.date(byAdding: .day, value: 1, to: todayKey).map({ cal.startOfDay(for: $0) }) else {
+            try modelContext.save()
+            return
+        }
+        let horizonKey = cal.date(byAdding: .day, value: 365, to: todayKey).map { cal.startOfDay(for: $0) } ?? tomorrowKey
+        let lastKey: Date = {
+            if let endDate = medication.endDate {
+                return min(cal.startOfDay(for: endDate), horizonKey)
+            }
+            return horizonKey
+        }()
+
+        if tomorrowKey <= lastKey {
+            let currentMedicationLogs = try modelContext.fetch(FetchDescriptor<IntakeLog>())
+                .filter { $0.medicationID == medication.id }
+            var existingFutureKeys = Set(
+                currentMedicationLogs
+                    .filter {
+                        $0.dateKey >= tomorrowKey &&
+                        $0.dateKey <= lastKey
+                    }
+                    .map { cal.startOfDay(for: $0.dateKey).timeIntervalSinceReferenceDate }
+            )
+
+            var cursor = tomorrowKey
+            while cursor <= lastKey {
+                if medication.isDue(on: cursor, calendar: cal) {
+                    let keyValue = cursor.timeIntervalSinceReferenceDate
+                    if !existingFutureKeys.contains(keyValue) {
+                        modelContext.insert(
+                            IntakeLog(
+                                medicationID: medication.id,
+                                dateKey: cursor,
+                                isTaken: false,
+                                takenAt: nil
+                            )
+                        )
+                        existingFutureKeys.insert(keyValue)
+                    }
+                }
+                guard let next = cal.date(byAdding: .day, value: 1, to: cursor) else { break }
+                cursor = next
             }
         }
 
         try modelContext.save()
+        NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
     }
 
     /// Si taken == true:

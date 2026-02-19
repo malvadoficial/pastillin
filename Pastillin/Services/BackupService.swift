@@ -98,8 +98,21 @@ enum BackupService {
             NotificationService.cancelOccasionalReminder(medicationID: item.id)
             modelContext.delete(item)
         }
-        for item in currentSettings { modelContext.delete(item) }
         NotificationService.cancelDailyReminder()
+
+        // Evita invalidar el objeto que SettingsView puede estar observando en tiempo real.
+        if let app = currentSettings.first(where: { $0.id == "app" }) ?? currentSettings.first {
+            app.id = "app"
+            app.reminderTimesInMinutes = [10 * 60]
+            app.reminderHour = 10
+            app.reminderMinute = 0
+            app.notificationsEnabled = false
+            app.medicationAutocompleteEnabled = true
+            app.uiAppearanceMode = .system
+        } else {
+            modelContext.insert(AppSettings())
+        }
+
         try modelContext.save()
     }
 
