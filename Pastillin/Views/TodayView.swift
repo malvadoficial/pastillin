@@ -21,20 +21,10 @@ struct TodayView: View {
     @State private var showShoppingDisclaimerAlert = false
     @State private var selected: SelectedWrapper? = nil
     @State private var addIntakeTarget: AddTodayIntakeTarget? = nil
-    @State private var showHelpFromGuide = false
-    @State private var didDismissGettingStartedOverlay = false
-    @State private var plusButtonFrame: CGRect = .zero
-    @State private var helpButtonFrame: CGRect = .zero
 
     // Evita que el tap del botón dispare también el tap de la celda
     @State private var suppressCellTap = false
-    
-    private var isFirstRunOrCleanState: Bool {
-        medications.isEmpty && logs.isEmpty
-    }
-    private var shouldShowGettingStartedOverlay: Bool {
-        isFirstRunOrCleanState && rows.isEmpty && addIntakeTarget == nil && !didDismissGettingStartedOverlay
-    }
+
     private var shoppingCartCount: Int {
         medications.filter { $0.inShoppingCart }.count
     }
@@ -84,28 +74,6 @@ struct TodayView: View {
 
                 if rows.isEmpty {
                     EmptyMedicinesStateView()
-                    if isFirstRunOrCleanState {
-                        HStack {
-                            Spacer()
-                            NavigationLink {
-                                HelpView()
-                            } label: {
-                                Label(L10n.tr("today_open_help"), systemImage: "questionmark.circle")
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .tint(AppTheme.brandBlue)
-                            .background(
-                                GeometryReader { proxy in
-                                    Color.clear.preference(
-                                        key: HelpButtonFramePreferenceKey.self,
-                                        value: proxy.frame(in: .named("today-root"))
-                                    )
-                                }
-                            )
-                            Spacer()
-                        }
-                        .padding(.vertical, 8)
-                    }
                 } else {
                     ForEach(rows) { row in
                         HStack(spacing: 12) {
@@ -215,37 +183,7 @@ struct TodayView: View {
                                 .foregroundStyle(.white)
                         }
                     }
-                    .background(
-                        GeometryReader { proxy in
-                            Color.clear.preference(
-                                key: PlusButtonFramePreferenceKey.self,
-                                value: proxy.frame(in: .named("today-root"))
-                            )
-                        }
-                    )
                 }
-            }
-            .overlay {
-                if shouldShowGettingStartedOverlay {
-                    TodayGettingStartedOverlay(
-                        plusFrame: plusButtonFrame,
-                        helpFrame: helpButtonFrame,
-                        onTapPlus: { addIntakeTarget = AddTodayIntakeTarget(day: Calendar.current.startOfDay(for: Date())) },
-                        onTapHelp: {
-                            didDismissGettingStartedOverlay = true
-                            showHelpFromGuide = true
-                        }
-                    )
-                    .transition(.opacity)
-                    .zIndex(3)
-                }
-            }
-            .coordinateSpace(name: "today-root")
-            .onPreferenceChange(PlusButtonFramePreferenceKey.self) { frame in
-                plusButtonFrame = frame
-            }
-            .onPreferenceChange(HelpButtonFramePreferenceKey.self) { frame in
-                helpButtonFrame = frame
             }
             .onAppear {
                 try? IntakeSchedulingService.bootstrapScheduledIntakes(modelContext: modelContext)
@@ -279,22 +217,6 @@ struct TodayView: View {
                 ) { medication, option in
                     createTodayIntake(for: medication, option: option, day: target.day)
                     addIntakeTarget = nil
-                }
-            }
-            .sheet(isPresented: $showHelpFromGuide) {
-                NavigationStack {
-                    HelpView()
-                        .safeAreaInset(edge: .bottom) {
-                            Button(L10n.tr("button_close")) {
-                                showHelpFromGuide = false
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .padding(.horizontal, 16)
-                            .padding(.top, 8)
-                            .padding(.bottom, 10)
-                            .frame(maxWidth: .infinity)
-                            .background(.ultraThinMaterial)
-                        }
                 }
             }
             .alert(L10n.tr("cart_disclaimer_title"), isPresented: $showShoppingDisclaimerAlert) {
@@ -477,140 +399,6 @@ struct TodayView: View {
     struct AddTodayIntakeTarget: Identifiable {
         let id = UUID()
         let day: Date
-    }
-}
-
-private struct PlusButtonFramePreferenceKey: PreferenceKey {
-    static var defaultValue: CGRect = .zero
-
-    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
-        let next = nextValue()
-        if next != .zero {
-            value = next
-        }
-    }
-}
-
-private struct HelpButtonFramePreferenceKey: PreferenceKey {
-    static var defaultValue: CGRect = .zero
-
-    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
-        let next = nextValue()
-        if next != .zero {
-            value = next
-        }
-    }
-}
-
-private struct TodayGettingStartedOverlay: View {
-    let plusFrame: CGRect
-    let helpFrame: CGRect
-    let onTapPlus: () -> Void
-    let onTapHelp: () -> Void
-
-    var body: some View {
-        GeometryReader { proxy in
-            let safeWidth = max(finite(proxy.size.width, fallback: 320), 1)
-            let safeHeight = max(finite(proxy.size.height, fallback: 640), 1)
-            let safeSize = CGSize(width: safeWidth, height: safeHeight)
-            let safeTop = finite(proxy.safeAreaInsets.top, fallback: 0)
-            let plusTarget = sanitizedFrame(normalizedPlusFrame(in: safeSize, safeTop: safeTop), in: safeSize)
-            let helpTarget = sanitizedFrame(normalizedHelpFrame(in: safeSize), in: safeSize)
-            let plusHoleWidth = max(plusTarget.width + 12, 1)
-            let plusHoleHeight = max(plusTarget.height + 10, 1)
-            let helpHoleWidth = max(helpTarget.width + 34, 1)
-            let helpHoleHeight = max(helpTarget.height + 18, 1)
-            let plusHintWidth = max(min(220, max(safeWidth - 24, 1)), 1)
-            let helpHintWidth = max(min(300, max(safeWidth - 24, 1)), 1)
-            let plusHintX = clamp(plusTarget.midX + 70, lower: 110, upper: max(safeWidth - 110, 110))
-            let plusHintY = min(safeHeight - 40, plusTarget.maxY + 46)
-            let helpHintX = clamp(helpTarget.midX, lower: 1, upper: max(safeWidth - 1, 1))
-            let helpHintY = max(26, helpTarget.minY - 34)
-
-            ZStack {
-                Color.black.opacity(0.70)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .frame(width: plusHoleWidth, height: plusHoleHeight)
-                            .position(x: plusTarget.midX, y: plusTarget.midY)
-                            .blendMode(.destinationOut)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .frame(width: helpHoleWidth, height: helpHoleHeight)
-                            .position(x: helpTarget.midX, y: helpTarget.midY)
-                            .blendMode(.destinationOut)
-                    )
-                    .compositingGroup()
-                    .ignoresSafeArea()
-
-                Button(action: onTapPlus) {
-                    Color.clear
-                        .frame(width: max(plusTarget.width, 34), height: max(plusTarget.height, 34))
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .position(x: plusTarget.midX, y: plusTarget.midY)
-
-                Button(action: onTapHelp) {
-                    Color.clear
-                        .frame(
-                            width: max(max(helpTarget.width + 8, 140), 1),
-                            height: max(max(helpTarget.height + 8, 40), 1)
-                        )
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .position(x: helpTarget.midX, y: helpTarget.midY)
-
-                Text(L10n.tr("today_overlay_plus_hint"))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .multilineTextAlignment(.center)
-                    .frame(width: plusHintWidth)
-                    .position(x: plusHintX, y: plusHintY)
-
-                Text(L10n.tr("today_overlay_help_hint"))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .multilineTextAlignment(.center)
-                    .frame(width: helpHintWidth)
-                    .position(x: helpHintX, y: helpHintY)
-            }
-        }
-        .ignoresSafeArea()
-    }
-
-    private func normalizedPlusFrame(in size: CGSize, safeTop: CGFloat) -> CGRect {
-        if plusFrame == .zero {
-            return CGRect(x: size.width - 52, y: safeTop + 8, width: 32, height: 32)
-        }
-        return plusFrame
-    }
-
-    private func normalizedHelpFrame(in size: CGSize) -> CGRect {
-        if helpFrame == .zero {
-            return CGRect(x: (size.width - 180) / 2, y: size.height * 0.62, width: 180, height: 42)
-        }
-        return helpFrame
-    }
-
-    private func sanitizedFrame(_ frame: CGRect, in size: CGSize) -> CGRect {
-        let safeWidth = max(finite(frame.width, fallback: 32), 1)
-        let safeHeight = max(finite(frame.height, fallback: 32), 1)
-        let maxX = max(size.width - safeWidth, 0)
-        let maxY = max(size.height - safeHeight, 0)
-        let safeX = clamp(finite(frame.origin.x, fallback: 0), lower: 0, upper: maxX)
-        let safeY = clamp(finite(frame.origin.y, fallback: 0), lower: 0, upper: maxY)
-        return CGRect(x: safeX, y: safeY, width: safeWidth, height: safeHeight)
-    }
-
-    private func finite(_ value: CGFloat, fallback: CGFloat) -> CGFloat {
-        value.isFinite ? value : fallback
-    }
-
-    private func clamp(_ value: CGFloat, lower: CGFloat, upper: CGFloat) -> CGFloat {
-        min(max(value, lower), upper)
     }
 }
 
