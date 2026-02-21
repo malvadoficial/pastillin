@@ -195,6 +195,16 @@ struct SettingsView: View {
                         Label(L10n.tr("settings_open_about"), systemImage: "info.circle")
                     }
                 }
+
+                Section {
+                    HStack {
+                        Spacer()
+                        Text(appVersionText)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                }
             }
             .safeAreaPadding(.bottom, 84)
             .navigationBarTitleDisplayMode(.inline)
@@ -308,6 +318,22 @@ struct SettingsView: View {
             return attributed
         }
         return AttributedString(withRealBreaks)
+    }
+
+    private var appVersionText: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+
+        switch (version, build) {
+        case let (v?, b?) where !v.isEmpty && !b.isEmpty:
+            return "Versión \(v) (\(b))"
+        case let (v?, _):
+            return "Versión \(v)"
+        case let (_, b?):
+            return "Build \(b)"
+        default:
+            return "Versión"
+        }
     }
 
     private func loadOrCreateSettings() {
