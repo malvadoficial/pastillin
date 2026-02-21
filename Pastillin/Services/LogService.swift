@@ -62,6 +62,7 @@ enum LogService {
 
     static func moveFutureScheduleAfterTakenOnDate(
         medication: Medication,
+        selectedLogID: UUID? = nil,
         selectedDay: Date,
         takenOnDay: Date,
         now: Date = Date(),
@@ -74,7 +75,30 @@ enum LogService {
         guard takenOnKey >= selectedKey else { return }
 
         let dayOffset = cal.dateComponents([.day], from: selectedKey, to: takenOnKey).day ?? 0
-        guard dayOffset > 0 else { return }
+        let selectedLog = selectedLogID.flatMap { id in
+            allLogs.first(where: { $0.id == id })
+        } ?? allLogs.first(where: {
+            $0.medicationID == medication.id && cal.isDate($0.dateKey, inSameDayAs: selectedKey)
+        })
+
+        if dayOffset == 0 {
+            if let selectedLog {
+                selectedLog.isTaken = true
+                selectedLog.takenAt = cal.isDateInToday(selectedKey) ? now : nil
+            } else {
+                modelContext.insert(
+                    IntakeLog(
+                        medicationID: medication.id,
+                        dateKey: selectedKey,
+                        isTaken: true,
+                        takenAt: cal.isDateInToday(selectedKey) ? now : nil
+                    )
+                )
+            }
+            try modelContext.save()
+            NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
+            return
+        }
 
         guard let currentStartDate = medication.startDateRaw else { return }
 
@@ -82,33 +106,28 @@ enum LogService {
             medication.startDate = cal.startOfDay(for: shiftedStart)
         }
 
-        let selectedDayExistingLog = allLogs.first {
-            $0.medicationID == medication.id && cal.isDate($0.dateKey, inSameDayAs: selectedKey)
-        }
-        let takenOnExistingLog = allLogs.first {
-            $0.medicationID == medication.id && cal.isDate($0.dateKey, inSameDayAs: takenOnKey)
-        }
-
         let takenAtValue = cal.isDateInToday(takenOnKey) ? now : nil
         let movedLogID: UUID
 
-        // 1) Mover solo la toma origen al día indicado por el usuario.
-        if let selectedDayExistingLog,
-           let takenOnExistingLog,
-           selectedDayExistingLog.id != takenOnExistingLog.id {
-            takenOnExistingLog.isTaken = true
-            takenOnExistingLog.takenAt = takenAtValue
-            modelContext.delete(selectedDayExistingLog)
-            movedLogID = takenOnExistingLog.id
-        } else if let selectedDayExistingLog {
-            selectedDayExistingLog.dateKey = takenOnKey
-            selectedDayExistingLog.isTaken = true
-            selectedDayExistingLog.takenAt = takenAtValue
-            movedLogID = selectedDayExistingLog.id
-        } else if let takenOnExistingLog {
-            takenOnExistingLog.isTaken = true
-            takenOnExistingLog.takenAt = takenAtValue
-            movedLogID = takenOnExistingLog.id
+        // 1) Mover y marcar tomada la toma exacta seleccionada.
+        if let selectedLog {
+            selectedLog.dateKey = takenOnKey
+            selectedLog.isTaken = true
+            selectedLog.takenAt = takenAtValue
+            if let intakeID = selectedLog.intakeID {
+                let intakeDescriptor = FetchDescriptor<Intake>(
+                    predicate: #Predicate { $0.id == intakeID }
+                )
+                if let intake = try? modelContext.fetch(intakeDescriptor).first {
+                    let hm = cal.dateComponents([.hour, .minute], from: intake.scheduledAt)
+                    var comps = cal.dateComponents([.year, .month, .day], from: takenOnKey)
+                    comps.hour = hm.hour ?? 12
+                    comps.minute = hm.minute ?? 0
+                    comps.second = 0
+                    intake.scheduledAt = cal.date(from: comps) ?? takenOnKey
+                }
+            }
+            movedLogID = selectedLog.id
         } else {
             let newLog = IntakeLog(medicationID: medication.id, dateKey: takenOnKey, isTaken: true, takenAt: takenAtValue)
             modelContext.insert(newLog)

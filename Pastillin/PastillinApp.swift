@@ -7,6 +7,7 @@
 import SwiftUI
 import SwiftData
 import UserNotifications
+import UIKit
 
 @main
 struct PastillinApp: App {
@@ -27,8 +28,19 @@ struct PastillinApp: App {
         WindowGroup {
             SplashGateView()
                 .tint(AppTheme.brandBlue)
+                .environment(\.font, appBaseFont)
         }
         .modelContainer(sharedModelContainer)
+    }
+
+    private var appBaseFont: Font {
+        if UIFont(name: "Manrope", size: 17) != nil {
+            return .custom("Manrope", size: 17, relativeTo: .body)
+        }
+        if UIFont(name: "Manrope-Regular", size: 17) != nil {
+            return .custom("Manrope-Regular", size: 17, relativeTo: .body)
+        }
+        return .body
     }
 }
 
@@ -37,8 +49,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil
     ) -> Bool {
+        FontRegistrar.registerAppFonts()
         UNUserNotificationCenter.current().delegate = self
         NotificationService.registerCategories()
+        UserDefaults.standard.set(AppTab.medications.rawValue, forKey: "selectedTab")
         return true
     }
 

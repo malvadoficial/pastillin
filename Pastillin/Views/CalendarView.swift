@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 enum DayStatus {
     case none       // blanco: no tocaba nada
@@ -172,10 +173,11 @@ struct CalendarView: View {
             .sheet(item: $dayEditorTarget) { wrap in
                 DayDetailView(day: wrap.date)
             }
-            .sheet(item: $addIntakeTarget) { wrap in
+            .fullScreenCover(item: $addIntakeTarget) { wrap in
                 AddIntakePickerView(
                     day: wrap.day,
-                    medications: medications.filter { $0.isActive }
+                    medications: medications.filter { $0.isActive },
+                    lastTakenByMedication: latestTakenByMedication()
                 ) { medication, option in
                     createManualIntake(for: medication, day: wrap.day, option: option)
                     addIntakeTarget = nil
@@ -274,11 +276,19 @@ struct CalendarView: View {
         let dayKey = calendar.startOfDay(for: day)
 
         if option == .startSchedule, medication.kind == .scheduled {
-            medication.startDate = dayKey
+            if medication.repeatUnit == .hour {
+                let hm = calendar.dateComponents([.hour, .minute], from: medication.startDateRaw ?? Date())
+                var comps = calendar.dateComponents([.year, .month, .day], from: dayKey)
+                comps.hour = hm.hour
+                comps.minute = hm.minute
+                medication.startDate = calendar.date(from: comps) ?? dayKey
+            } else {
+                medication.startDate = dayKey
+            }
             medication.setSkipped(false, on: dayKey)
             try? IntakeSchedulingService.regenerateFutureIntakes(
                 for: medication,
-                from: dayKey,
+                from: medication.repeatUnit == .hour ? medication.startDate : dayKey,
                 modelContext: modelContext
             )
             ensureLogsForIntakes(on: dayKey)
@@ -307,6 +317,16 @@ struct CalendarView: View {
     private func ensureLogsForIntakes(on day: Date) {
         let key = Calendar.current.startOfDay(for: day)
         ensureLogsForIntakes(from: key, to: key)
+    }
+
+    private func latestTakenByMedication() -> [UUID: Date] {
+        var result: [UUID: Date] = [:]
+        for log in logs where log.isTaken {
+            guard let takenAt = log.takenAt else { continue }
+            if let existing = result[log.medicationID], existing >= takenAt { continue }
+            result[log.medicationID] = takenAt
+        }
+        return result
     }
 
     private func ensureLogsForIntakes(from start: Date, to end: Date) {
@@ -497,12 +517,18 @@ struct CalendarView: View {
                                         Text(item.med.name)
                                             .font(.footnote.weight(.semibold))
 
-                                        if item.med.kind == .occasional {
-                                            Text(L10n.tr("medication_occasional_badge_short"))
-                                                .font(.caption2.weight(.semibold))
-                                                .foregroundStyle(AppTheme.brandBlue)
-                                        }
+                                    if item.med.kind == .occasional {
+                                        Text(L10n.tr("medication_occasional_badge_short"))
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(AppTheme.brandBlue)
                                     }
+
+                                    if let label = slotLabel(for: item) {
+                                        Text(label)
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(AppTheme.brandYellow)
+                                    }
+                                }
 
                                     Text(item.log.isTaken ? (item.log.takenAt.map { Fmt.timeShort($0) } ?? L10n.tr("time_unspecified")) : "—")
                                         .font(.caption)
@@ -552,7 +578,7 @@ struct CalendarView: View {
                 let log = dayLogs.first(where: { $0.intakeID == intake.id })
                     ?? dayLogs.first(where: { $0.medicationID == med.id })
                 guard let log else { return nil }
-                return CalendarRow(id: intake.id, med: med, log: log)
+                return CalendarRow(id: intake.id, med: med, log: log, intake: intake)
             }
         }
 
@@ -567,14 +593,23 @@ struct CalendarView: View {
 
         return medsToShow.compactMap { med in
             guard let log = dayLogs.first(where: { $0.medicationID == med.id }) else { return nil }
-            return CalendarRow(id: log.id, med: med, log: log)
+            return CalendarRow(id: log.id, med: med, log: log, intake: nil)
         }
+    }
+
+    private func slotLabel(for row: CalendarRow) -> String? {
+        guard row.med.threeTimesDaily, let intake = row.intake else { return nil }
+        let hour = Calendar.current.component(.hour, from: intake.scheduledAt)
+        if hour < 12 { return L10n.tr("intake_slot_morning") }
+        if hour < 20 { return L10n.tr("intake_slot_afternoon") }
+        return L10n.tr("intake_slot_night")
     }
 
     struct CalendarRow: Identifiable {
         let id: UUID
         let med: Medication
         let log: IntakeLog
+        let intake: Intake?
     }
 
     struct SelectedLogWrapper: Identifiable {
@@ -604,19 +639,45 @@ private struct AddIntakePickerView: View {
     @Environment(\.dismiss) private var dismiss
     let day: Date
     let medications: [Medication]
+    let lastTakenByMedication: [UUID: Date]
     let onSelect: (Medication, IntakeAddOption) -> Void
     @State private var searchText = ""
     @State private var selectedMedication: Medication? = nil
     @State private var showTypeSelector = false
 
+    private var uniqueMedications: [Medication] {
+        var seen = Set<String>()
+        var result: [Medication] = []
+        for medication in medications {
+            let dedupeKey: String
+            if medication.kind == .occasional {
+                dedupeKey = "occasional:\(medication.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())"
+            } else {
+                dedupeKey = "id:\(medication.id.uuidString)"
+            }
+            if seen.insert(dedupeKey).inserted {
+                result.append(medication)
+            }
+        }
+        return result
+    }
+
     private var filtered: [Medication] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else {
-            return medications.sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
+            return uniqueMedications.sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
         }
-        return medications
+        return uniqueMedications
             .filter { $0.name.localizedCaseInsensitiveContains(query) }
             .sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
+    }
+
+    private var occasional: [Medication] {
+        filtered.filter { $0.kind == .occasional }
+    }
+
+    private var scheduled: [Medication] {
+        filtered.filter { $0.kind == .scheduled }
     }
 
     var body: some View {
@@ -626,20 +687,19 @@ private struct AddIntakePickerView: View {
                     Text(L10n.tr("medications_search_no_results"))
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(filtered) { medication in
-                        Button {
-                            selectedMedication = medication
-                            showTypeSelector = true
-                        } label: {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(medication.name)
-                                    .foregroundStyle(.primary)
-                                Text(medication.kind == .scheduled ? L10n.tr("medications_section_scheduled") : L10n.tr("medications_section_occasional"))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                    if !occasional.isEmpty {
+                        Section(L10n.tr("medications_section_occasional")) {
+                            ForEach(occasional) { medication in
+                                medicationRow(medication)
                             }
                         }
-                        .buttonStyle(.plain)
+                    }
+                    if !scheduled.isEmpty {
+                        Section(L10n.tr("medications_section_scheduled")) {
+                            ForEach(scheduled) { medication in
+                                medicationRow(medication)
+                            }
+                        }
                     }
                 }
             }
@@ -651,20 +711,91 @@ private struct AddIntakePickerView: View {
                     Button(L10n.tr("button_cancel")) { dismiss() }
                 }
             }
-            .confirmationDialog(
-                L10n.tr("medication_add_type_title"),
-                isPresented: $showTypeSelector,
-                titleVisibility: .visible
-            ) {
-                if let medication = selectedMedication {
-                    ForEach(IntakeAddOption.options(for: medication.kind), id: \.self) { option in
-                        Button(option.title) {
-                            onSelect(medication, option)
+            .overlay {
+                if showTypeSelector, let medication = selectedMedication {
+                    ZStack(alignment: .bottom) {
+                        Color.black.opacity(0.62)
+                            .ignoresSafeArea()
+                            .onTapGesture { showTypeSelector = false }
+
+                        VStack(spacing: 12) {
+                            Text(L10n.tr("medication_add_type_title"))
+                                .font(.headline)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                            ForEach(IntakeAddOption.options(for: medication.kind), id: \.self) { option in
+                                Button(option.title) {
+                                    showTypeSelector = false
+                                    onSelect(medication, option)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.vertical, 10)
+                                .buttonStyle(.plain)
+                            }
+
+                            Divider()
+
+                            Button(L10n.tr("button_cancel")) {
+                                showTypeSelector = false
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 6)
                         }
+                        .padding(16)
+                        .background(.regularMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 8)
                     }
                 }
-                Button(L10n.tr("button_cancel"), role: .cancel) {}
             }
+        }
+    }
+
+    @ViewBuilder
+    private func medicationRow(_ medication: Medication) -> some View {
+        Button {
+            if medication.kind == .occasional {
+                onSelect(medication, .occasionalTaken)
+                return
+            }
+            selectedMedication = medication
+            showTypeSelector = true
+        } label: {
+            HStack(spacing: 10) {
+                medicationThumbnail(for: medication)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(medication.name)
+                        .foregroundStyle(.primary)
+                    if let lastTaken = lastTakenByMedication[medication.id] {
+                        Text("Última toma: \(Fmt.dayMedium(lastTaken)) \(Fmt.timeShort(lastTaken))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func medicationThumbnail(for medication: Medication) -> some View {
+        if let data = medication.photoData,
+           let image = UIImage(data: data) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 34, height: 34)
+                .clipped()
+                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        } else {
+            MedicationDefaultArtworkView(
+                kind: MedicationDefaultArtwork.kind(for: medication),
+                width: 34,
+                height: 34,
+                cornerRadius: 7
+            )
         }
     }
 }
@@ -676,7 +807,7 @@ private enum IntakeAddOption: Hashable {
     var title: String {
         switch self {
         case .occasionalTaken:
-            return "Toma ocasional (marcada)"
+            return "Toma ocasional"
         case .startSchedule:
             return "Comienzo de pauta"
         }
@@ -688,6 +819,8 @@ private enum IntakeAddOption: Hashable {
             return [.occasionalTaken]
         case .scheduled:
             return [.occasionalTaken, .startSchedule]
+        case .unspecified:
+            return []
         }
     }
 }

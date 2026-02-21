@@ -11,11 +11,13 @@ import SwiftData
 enum RepeatUnit: Int, Codable {
     case day
     case month
+    case hour
 }
 
 enum MedicationKind: Int, Codable {
     case scheduled
     case occasional
+    case unspecified
 }
 
 enum UIAppearanceMode: Int, Codable, CaseIterable {
@@ -58,6 +60,7 @@ final class Medication {
     var occasionalReminderHour: Int?
     var occasionalReminderMinute: Int?
     var skippedDateKeysRaw: [Double]?
+    var threeTimesDailyRaw: Bool?
     var repeatUnitRaw: Int
     var interval: Int                // 1 = cada día / cada mes
     var startDateRaw: Date?          // ancla (puede faltar en medicación inactiva)
@@ -84,6 +87,7 @@ final class Medication {
         self.occasionalReminderHour = nil
         self.occasionalReminderMinute = nil
         self.skippedDateKeysRaw = []
+        self.threeTimesDailyRaw = false
         self.repeatUnitRaw = repeatUnit.rawValue
         self.interval = max(1, interval)
         self.startDateRaw = startDate
@@ -97,6 +101,11 @@ final class Medication {
     var repeatUnit: RepeatUnit {
         get { RepeatUnit(rawValue: repeatUnitRaw) ?? .day }
         set { repeatUnitRaw = newValue.rawValue }
+    }
+
+    var threeTimesDaily: Bool {
+        get { threeTimesDailyRaw ?? false }
+        set { threeTimesDailyRaw = newValue }
     }
 
     var startDate: Date {
@@ -145,6 +154,16 @@ final class Medication {
         guard kind == .scheduled else { return nil }
         guard let remainingDoses = shoppingCartRemainingDoses, remainingDoses > 0 else { return nil }
 
+        if repeatUnit == .hour {
+            let stepHours = max(1, interval)
+            let finishMoment = referenceDate.addingTimeInterval(TimeInterval(stepHours * max(remainingDoses - 1, 0) * 3600))
+            if let endDate {
+                let endLimit = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: endDate)) ?? endDate
+                if finishMoment > endLimit { return nil }
+            }
+            return calendar.startOfDay(for: finishMoment)
+        }
+
         var day = calendar.startOfDay(for: referenceDate)
         var dosesLeft = remainingDoses
         let maxIterations = 365 * 20
@@ -186,32 +205,54 @@ final class Medication {
     func isDue(on dateKey: Date, calendar: Calendar = .current) -> Bool {
         guard let configuredStartDate = startDateRaw else { return false }
         let startKey = calendar.startOfDay(for: configuredStartDate)
-        if dateKey < startKey { return false }
+        let dayKey = calendar.startOfDay(for: dateKey)
+        let nextDay = calendar.date(byAdding: .day, value: 1, to: dayKey) ?? dayKey
+        if dayKey < startKey && kind != .scheduled { return false }
 
         if kind == .occasional {
-            return calendar.isDate(startKey, inSameDayAs: dateKey)
+            return calendar.isDate(startKey, inSameDayAs: dayKey)
         }
 
-        if isSkipped(on: dateKey, calendar: calendar) {
+        if isSkipped(on: dayKey, calendar: calendar) {
             return false
+        }
+
+        if repeatUnit == .hour {
+            let step = TimeInterval(max(1, interval) * 3600)
+            if nextDay <= configuredStartDate { return false }
+            if let endDate {
+                let endLimit = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: endDate)) ?? endDate
+                if dayKey >= endLimit { return false }
+            }
+
+            let delta = dayKey.timeIntervalSince(configuredStartDate)
+            let firstIndex = max(0, Int(ceil(delta / step)))
+            let firstOccurrence = configuredStartDate.addingTimeInterval(TimeInterval(firstIndex) * step)
+            if firstOccurrence >= nextDay { return false }
+
+            if let endDate {
+                let endLimit = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: endDate)) ?? endDate
+                return firstOccurrence < endLimit
+            }
+            return true
         }
 
         if let endDate {
             let endKey = calendar.startOfDay(for: endDate)
-            if dateKey > endKey { return false } // fin inclusiva
+            if dayKey > endKey { return false } // fin inclusiva
         }
 
         let n = max(1, interval)
 
         switch repeatUnit {
         case .day:
-            let diffDays = calendar.dateComponents([.day], from: startKey, to: dateKey).day ?? 0
+            let diffDays = calendar.dateComponents([.day], from: startKey, to: dayKey).day ?? 0
             return diffDays % n == 0
 
         case .month:
             // meses entre start y dateKey (ignorando día)
             let startComp = calendar.dateComponents([.year, .month, .day], from: startKey)
-            let dateComp  = calendar.dateComponents([.year, .month, .day], from: dateKey)
+            let dateComp  = calendar.dateComponents([.year, .month, .day], from: dayKey)
 
             guard let sy = startComp.year, let sm = startComp.month,
                   let dy = dateComp.year, let dm = dateComp.month else { return false }
@@ -223,7 +264,9 @@ final class Medication {
             // día objetivo = día del startDate (clamp a fin de mes si no existe)
             let targetDay = startComp.day ?? 1
             let scheduled = Self.scheduledDateFor(year: dy, month: dm, day: targetDay, calendar: calendar)
-            return calendar.isDate(scheduled, inSameDayAs: dateKey)
+            return calendar.isDate(scheduled, inSameDayAs: dayKey)
+        case .hour:
+            return false
         }
     }
 

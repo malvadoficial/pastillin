@@ -12,20 +12,6 @@ private struct AEMPSURLSheetItem: Identifiable {
     let url: URL
 }
 
-private enum AEMPSAddMode: Int, Identifiable {
-    case scheduled
-    case occasional
-
-    var id: Int { rawValue }
-
-    var kind: MedicationKind {
-        switch self {
-        case .scheduled: return .scheduled
-        case .occasional: return .occasional
-        }
-    }
-}
-
 struct AEMPSSearchView: View {
     @State private var searchText: String = ""
     @State private var searchField: CIMASearchField = .name
@@ -186,8 +172,7 @@ private struct AEMPSMedicationDetailView: View {
     @State private var detail: CIMAMedicationDetail? = nil
     @State private var imageData: Data? = nil
     @State private var isLoadingDetail = false
-    @State private var addMode: AEMPSAddMode? = nil
-    @State private var showingAddTypeDialog = false
+    @State private var showingCreateMedicationSheet = false
     @State private var documentSheetURL: AEMPSURLSheetItem? = nil
     @State private var showAdditionalInfo = false
 
@@ -312,7 +297,7 @@ private struct AEMPSMedicationDetailView: View {
 
             Section {
                 Button {
-                    showingAddTypeDialog = true
+                    showingCreateMedicationSheet = true
                 } label: {
                     Text(L10n.tr("aemps_add_as_medication"))
                         .frame(maxWidth: .infinity, alignment: .center)
@@ -326,29 +311,9 @@ private struct AEMPSMedicationDetailView: View {
                 Button(L10n.tr("button_close")) { dismiss() }
             }
         }
-        .overlay {
-            if showingAddTypeDialog {
-                AEMPSAddMedicationTypeOverlay(
-                    onChooseScheduled: {
-                        showingAddTypeDialog = false
-                        addMode = .scheduled
-                    },
-                    onChooseOccasional: {
-                        showingAddTypeDialog = false
-                        addMode = .occasional
-                    },
-                    onCancel: {
-                        showingAddTypeDialog = false
-                    }
-                )
-                .transition(.opacity)
-                .zIndex(2)
-            }
-        }
-        .sheet(item: $addMode) { mode in
+        .navigationDestination(isPresented: $showingCreateMedicationSheet) {
             EditMedicationView(
                 medication: nil,
-                creationKind: mode.kind,
                 markTakenNowOnCreate: false,
                 initialStartDate: Date(),
                 prefill: MedicationPrefillData(
@@ -503,51 +468,6 @@ private struct AEMPSProspectoWebView: UIViewRepresentable {
         if webView.url != url {
             let request = URLRequest(url: url, cachePolicy: .useProtocolCachePolicy, timeoutInterval: 30)
             webView.load(request)
-        }
-    }
-}
-
-private struct AEMPSAddMedicationTypeOverlay: View {
-    let onChooseScheduled: () -> Void
-    let onChooseOccasional: () -> Void
-    let onCancel: () -> Void
-
-    var body: some View {
-        ZStack(alignment: .bottom) {
-            Color.black.opacity(0.62)
-                .ignoresSafeArea()
-                .onTapGesture(perform: onCancel)
-
-            VStack(spacing: 12) {
-                Text(L10n.tr("medication_add_type_title"))
-                    .font(.headline)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                Button(action: onChooseScheduled) {
-                    Label(L10n.tr("medication_add_scheduled"), systemImage: "calendar.badge.plus")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 10)
-                }
-                .buttonStyle(.plain)
-
-                Button(action: onChooseOccasional) {
-                    Label(L10n.tr("medication_add_occasional"), systemImage: "plus.circle")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 10)
-                }
-                .buttonStyle(.plain)
-
-                Divider()
-
-                Button(L10n.tr("button_cancel"), action: onCancel)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
-            }
-            .padding(16)
-            .background(.regularMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .padding(.horizontal, 12)
-            .padding(.bottom, 8)
         }
     }
 }

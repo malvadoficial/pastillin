@@ -1,3 +1,27 @@
+# Pastillín
+
+Pastillín es una app para organizar medicación diaria de forma sencilla:
+
+- Botiquín con medicamentos pautados y de uso ocasional
+- Calendario para registrar y revisar tomas por día
+- Pestaña Hoy para marcar tomas pendientes rápidamente
+- Carrito de compra con control de dosis restantes
+- Integración opcional con AEMPS
+- Informe médico en PDF
+- Copia de seguridad y restauración
+- Tutorial visual integrado
+
+## Estado actual
+
+- Versión en desarrollo: `1.5`
+- Plataforma principal: iOS / iPadOS
+
+## Privacidad
+
+La política de privacidad completa está incluida debajo en este mismo archivo.
+
+---
+
 # Política de Privacidad / Privacy Policy
 
 **Última actualización / Last updated:** 16 de febrero de 2026

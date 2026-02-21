@@ -6,7 +6,6 @@ struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var settings: [AppSettings]
     @AppStorage("legalDisclaimerAccepted") private var legalDisclaimerAccepted = false
-    @AppStorage("showOnboardingTutorialNow") private var showOnboardingTutorialNow = false
     @AppStorage("deleteAllDataNow") private var deleteAllDataNow = false
     @AppStorage("deleteAllDataCompleted") private var deleteAllDataCompleted = false
 
@@ -19,8 +18,7 @@ struct SettingsView: View {
     @State private var reportTo: Date = Date()
     @State private var reportURL: URL? = nil
 
-    @State private var backupURL: URL? = nil
-    @State private var showBackupShareSheet = false
+    @State private var backupShareItem: ShareURLItem? = nil
     @State private var showingBackupImporter = false
     @State private var pendingRestoreURL: URL? = nil
     @State private var showRestoreConfirmation = false
@@ -29,6 +27,7 @@ struct SettingsView: View {
     @State private var showLegalDisclaimerAfterDelete = false
     @State private var showAEMPSInfoAlert = false
     @State private var showAboutSheet = false
+    @State private var showTutorial = false
 
     @State private var errorText: String? = nil
 
@@ -143,13 +142,9 @@ struct SettingsView: View {
 
                 Section(L10n.tr("settings_section_help")) {
                     Button {
-                        // Fuerza transición para que RootView reciba siempre el cambio.
-                        showOnboardingTutorialNow = false
-                        DispatchQueue.main.async {
-                            showOnboardingTutorialNow = true
-                        }
+                        showTutorial = true
                     } label: {
-                        Label(L10n.tr("settings_open_tutorial"), systemImage: "book.pages")
+                        Label(L10n.tr("settings_open_tutorial"), systemImage: "play.rectangle")
                     }
 
                     NavigationLink {
@@ -224,7 +219,7 @@ struct SettingsView: View {
                 legalDisclaimerAccepted = false
                 loadOrCreateSettings()
                 reportURL = nil
-                backupURL = nil
+                backupShareItem = nil
                 errorText = nil
                 showDeleteAllSuccessAlert = true
             }
@@ -278,10 +273,8 @@ struct SettingsView: View {
                     showLegalDisclaimerAfterDelete = false
                 }
             }
-            .sheet(isPresented: $showBackupShareSheet) {
-                if let url = backupURL {
-                    ActivityShareSheet(activityItems: [url])
-                }
+            .sheet(item: $backupShareItem) { item in
+                ActivityShareSheet(activityItems: [item.url])
             }
             .sheet(isPresented: $showAboutSheet) {
                 NavigationStack {
@@ -304,6 +297,9 @@ struct SettingsView: View {
                         }
                     }
                 }
+            }
+            .fullScreenCover(isPresented: $showTutorial) {
+                TutorialView()
             }
         }
     }
@@ -468,12 +464,11 @@ struct SettingsView: View {
 
     private func generateBackup() {
         do {
-            backupURL = try BackupService.generateBackup(modelContext: modelContext)
+            let url = try BackupService.generateBackup(modelContext: modelContext)
             errorText = nil
-            showBackupShareSheet = true
+            backupShareItem = ShareURLItem(url: url)
         } catch {
-            backupURL = nil
-            showBackupShareSheet = false
+            backupShareItem = nil
             errorText = L10n.tr("error_generate_backup")
         }
     }
@@ -500,6 +495,11 @@ struct SettingsView: View {
         errorText = nil
         deleteAllDataNow = true
     }
+}
+
+private struct ShareURLItem: Identifiable {
+    let id = UUID()
+    let url: URL
 }
 
 private struct ActivityShareSheet: UIViewControllerRepresentable {

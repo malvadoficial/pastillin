@@ -267,6 +267,7 @@ struct NoTakenView: View {
         let now = Date()
         try? LogService.moveFutureScheduleAfterTakenOnDate(
             medication: row.medication,
+            selectedLogID: row.log.id,
             selectedDay: row.log.dateKey,
             takenOnDay: clampedChosenDate,
             now: now,

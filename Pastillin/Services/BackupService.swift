@@ -42,6 +42,7 @@ enum BackupService {
             med.occasionalReminderHour = m.occasionalReminderHour
             med.occasionalReminderMinute = m.occasionalReminderMinute
             med.skippedDateKeysRaw = m.skippedDateKeysRaw
+            med.threeTimesDailyRaw = m.threeTimesDailyRaw
             med.repeatUnitRaw = m.repeatUnitRaw
             med.startDateRaw = m.startDate
             med.cimaNRegistro = m.cimaNRegistro
@@ -154,6 +155,7 @@ enum BackupService {
                     occasionalReminderHour: $0.occasionalReminderHour,
                     occasionalReminderMinute: $0.occasionalReminderMinute,
                     skippedDateKeysRaw: $0.skippedDateKeysRaw,
+                    threeTimesDailyRaw: $0.threeTimesDailyRaw,
                     repeatUnitRaw: $0.repeatUnitRaw,
                     interval: $0.interval,
                     startDate: $0.startDateRaw,
@@ -224,6 +226,7 @@ private struct BackupMedication: Codable {
     let occasionalReminderHour: Int?
     let occasionalReminderMinute: Int?
     let skippedDateKeysRaw: [Double]?
+    let threeTimesDailyRaw: Bool?
     let repeatUnitRaw: Int
     let interval: Int
     let startDate: Date?

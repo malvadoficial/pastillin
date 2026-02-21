@@ -6,12 +6,12 @@ struct MedicationsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var medications: [Medication]
     @Query private var logs: [IntakeLog]
+    @Query private var intakes: [Intake]
     @AppStorage("selectedTab") private var selectedTab: AppTab = .medications
     @AppStorage("lastTabBeforeNoTaken") private var lastTabBeforeNoTakenRaw: String = AppTab.medications.rawValue
     @AppStorage("shoppingCartDisclaimerShown") private var shoppingCartDisclaimerShown: Bool = false
 
-    @State private var showingAddTypeDialog = false
-    @State private var addMode: AddMode? = nil
+    @State private var showingCreateMedicationSheet = false
     @State private var editMed: Medication? = nil
     @State private var showShoppingDisclaimerAlert = false
     @State private var pendingCartMedicationID: UUID? = nil
@@ -34,30 +34,14 @@ struct MedicationsView: View {
     var body: some View {
         NavigationStack {
             medicationsList
-            .overlay {
-                if showingAddTypeDialog {
-                    AddMedicationTypeOverlay(
-                        onChooseScheduled: {
-                            showingAddTypeDialog = false
-                            addMode = .scheduled
-                        },
-                        onChooseOccasional: {
-                            showingAddTypeDialog = false
-                            addMode = .occasional
-                        },
-                        onCancel: { showingAddTypeDialog = false }
-                    )
-                    .transition(.opacity)
-                    .zIndex(2)
-                }
-            }
             .onAppear {
+                deactivateFinishedScheduledMedicationsIfNeeded()
                 normalizeSortOrderIfNeeded()
             }
-            .sheet(item: $addMode) { mode in
-                EditMedicationView(medication: nil, creationKind: mode.kind)
+            .fullScreenCover(isPresented: $showingCreateMedicationSheet) {
+                EditMedicationView(medication: nil)
             }
-            .sheet(item: $editMed) { med in
+            .navigationDestination(item: $editMed) { med in
                 EditMedicationView(medication: med, openedFromCabinet: true)
             }
             .alert(L10n.tr("cart_disclaimer_title"), isPresented: $showShoppingDisclaimerAlert) {
@@ -76,12 +60,13 @@ struct MedicationsView: View {
             if medications.isEmpty {
                 EmptyMedicinesStateView()
                     .listRowBackground(Color.clear)
-            } else if hasSearchText && scheduledMeds.isEmpty && occasionalGroups.isEmpty {
+            } else if hasSearchText && scheduledMeds.isEmpty && occasionalGroups.isEmpty && unspecifiedMeds.isEmpty {
                 Text(L10n.tr("medications_search_no_results"))
                     .foregroundStyle(.secondary)
             } else {
                 scheduledSection
                 occasionalSection
+                unspecifiedSection
             }
         }
         .textSelection(.enabled)
@@ -123,6 +108,18 @@ struct MedicationsView: View {
         }
     }
 
+    private var unspecifiedSection: some View {
+        Section {
+            ForEach(unspecifiedMeds) { med in
+                medicationRow(med)
+            }
+            .onDelete { delete($0, in: unspecifiedMeds) }
+        } header: {
+            Text(L10n.tr("medications_section_unspecified"))
+                .foregroundStyle(AppTheme.brandYellow)
+        }
+    }
+
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItemGroup(placement: .topBarLeading) {
@@ -153,7 +150,7 @@ struct MedicationsView: View {
             }
             .foregroundStyle(AppTheme.brandYellow)
 
-            Button { showingAddTypeDialog = true } label: { Image(systemName: "plus") }
+            Button { showingCreateMedicationSheet = true } label: { Image(systemName: "plus") }
                 .foregroundStyle(AppTheme.brandYellow)
         }
     }
@@ -185,11 +182,18 @@ struct MedicationsView: View {
     }
 
     private var scheduledMeds: [Medication] {
-        sortedMeds.filter { $0.kind == .scheduled && matchesSearch($0) }
+        let all = sortedMeds.filter { $0.kind == .scheduled && matchesSearch($0) }
+        let active = all.filter(\.isActive)
+        let inactive = all.filter { !$0.isActive }
+        return active + inactive
     }
 
     private var occasionalMeds: [Medication] {
         sortedMeds.filter { $0.kind == .occasional && matchesSearch($0) }
+    }
+
+    private var unspecifiedMeds: [Medication] {
+        sortedMeds.filter { $0.kind == .unspecified && matchesSearch($0) }
     }
 
     private var occasionalGroups: [OccasionalGroup] {
@@ -219,6 +223,9 @@ struct MedicationsView: View {
         }
 
         groups.sort { lhs, rhs in
+            if lhs.representative.isActive != rhs.representative.isActive {
+                return lhs.representative.isActive && !rhs.representative.isActive
+            }
             let lo = lhs.medications.first?.sortOrder ?? 0
             let ro = rhs.medications.first?.sortOrder ?? 0
             if lo != ro { return lo < ro }
@@ -346,8 +353,7 @@ struct MedicationsView: View {
     private func delete(_ indexSet: IndexSet, in sectionMeds: [Medication]) {
         for i in indexSet {
             let med = sectionMeds[i]
-            NotificationService.cancelOccasionalReminder(medicationID: med.id)
-            modelContext.delete(med)
+            deleteMedicationCompletely(med)
         }
         try? modelContext.save()
         normalizeSortOrderIfNeeded(force: true)
@@ -366,6 +372,7 @@ struct MedicationsView: View {
         }
 
         let current = scheduled + occasionalMeds
+            + unspecifiedMeds
         for (idx, med) in current.enumerated() {
             med.sortOrder = idx
         }
@@ -384,6 +391,10 @@ struct MedicationsView: View {
                 currentOrder += 1
             }
         }
+        for med in unspecifiedMeds {
+            med.sortOrder = currentOrder
+            currentOrder += 1
+        }
         try? modelContext.save()
     }
 
@@ -391,12 +402,22 @@ struct MedicationsView: View {
         for i in indexSet {
             let group = occasionalGroups[i]
             for med in group.medications {
-                NotificationService.cancelOccasionalReminder(medicationID: med.id)
-                modelContext.delete(med)
+                deleteMedicationCompletely(med)
             }
         }
         try? modelContext.save()
         normalizeSortOrderIfNeeded(force: true)
+    }
+
+    private func deleteMedicationCompletely(_ med: Medication) {
+        NotificationService.cancelOccasionalReminder(medicationID: med.id)
+        for intake in intakes where intake.medicationID == med.id {
+            modelContext.delete(intake)
+        }
+        for log in logs where log.medicationID == med.id {
+            modelContext.delete(log)
+        }
+        modelContext.delete(med)
     }
 
     private func normalizedMedicationName(_ name: String) -> String {
@@ -417,6 +438,23 @@ struct MedicationsView: View {
         try? modelContext.save()
     }
 
+    private func deactivateFinishedScheduledMedicationsIfNeeded() {
+        let today = Calendar.current.startOfDay(for: Date())
+        var changed = false
+
+        for med in medications where med.kind == .scheduled && med.isActive {
+            guard let endDate = med.endDate else { continue }
+            if Calendar.current.startOfDay(for: endDate) <= today {
+                med.isActive = false
+                changed = true
+            }
+        }
+
+        if changed {
+            try? modelContext.save()
+        }
+    }
+
     @ViewBuilder
     private func summaryView(_ med: Medication) -> some View {
         if !med.isActive && !med.hasConfiguredStartDate {
@@ -428,16 +466,30 @@ struct MedicationsView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         } else {
-            let recurrence = L10n.recurrenceText(repeatUnit: med.repeatUnit, interval: med.interval)
+            let recurrence = med.threeTimesDaily
+                ? L10n.tr("recurrence_three_times_daily")
+                : L10n.recurrenceText(repeatUnit: med.repeatUnit, interval: med.interval)
             let isDaily = med.repeatUnit == .day && med.interval == 1
             VStack(alignment: .leading, spacing: 2) {
                 Text(recurrence)
                     .font(.subheadline.weight(isDaily ? .bold : .regular))
                     .foregroundStyle(.secondary)
 
-                Text(String(format: L10n.tr("summary_start_line_format"), Fmt.dayMedium(med.startDate)))
+                if med.repeatUnit == .hour {
+                    Text(
+                        String(
+                            format: L10n.tr("summary_start_line_with_time_format"),
+                            Fmt.dayMedium(med.startDate),
+                            Fmt.timeShort(med.startDate)
+                        )
+                    )
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                } else {
+                    Text(String(format: L10n.tr("summary_start_line_format"), Fmt.dayMedium(med.startDate)))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
 
                 if let endDate = med.endDate {
                     let isFinished = Calendar.current.startOfDay(for: endDate) <= Calendar.current.startOfDay(for: Date())
@@ -471,64 +523,5 @@ struct MedicationsView: View {
         let cal = Calendar.current
         let dayKey = cal.startOfDay(for: med.startDate)
         return logs.first(where: { $0.medicationID == med.id && cal.isDate($0.dateKey, inSameDayAs: dayKey) })?.takenAt
-    }
-}
-
-private struct AddMedicationTypeOverlay: View {
-    let onChooseScheduled: () -> Void
-    let onChooseOccasional: () -> Void
-    let onCancel: () -> Void
-
-    var body: some View {
-        ZStack(alignment: .bottom) {
-            Color.black.opacity(0.62)
-                .ignoresSafeArea()
-                .onTapGesture(perform: onCancel)
-
-            VStack(spacing: 12) {
-                Text(L10n.tr("medication_add_type_title"))
-                    .font(.headline)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                Button(action: onChooseScheduled) {
-                    Label(L10n.tr("medication_add_scheduled"), systemImage: "calendar.badge.plus")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 10)
-                }
-                .buttonStyle(.plain)
-
-                Button(action: onChooseOccasional) {
-                    Label(L10n.tr("medication_add_occasional"), systemImage: "plus.circle")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 10)
-                }
-                .buttonStyle(.plain)
-
-                Divider()
-
-                Button(L10n.tr("button_cancel"), action: onCancel)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
-            }
-            .padding(16)
-            .background(.regularMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .padding(.horizontal, 12)
-            .padding(.bottom, 8)
-        }
-    }
-}
-
-private enum AddMode: Int, Identifiable {
-    case scheduled
-    case occasional
-
-    var id: Int { rawValue }
-
-    var kind: MedicationKind {
-        switch self {
-        case .scheduled: return .scheduled
-        case .occasional: return .occasional
-        }
     }
 }
