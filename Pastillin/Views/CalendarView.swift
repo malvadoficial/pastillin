@@ -13,6 +13,7 @@ struct CalendarView: View {
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Query private var medications: [Medication]
     @Query private var logs: [IntakeLog]
+    @Query private var intakes: [Intake]
     @AppStorage("selectedTab") private var selectedTab: AppTab = .calendar
     @AppStorage("lastTabBeforeNoTaken") private var lastTabBeforeNoTakenRaw: String = AppTab.calendar.rawValue
     @AppStorage("shoppingCartDisclaimerShown") private var shoppingCartDisclaimerShown: Bool = false
@@ -21,8 +22,7 @@ struct CalendarView: View {
     @State private var selectedDay: Date? = nil
     @State private var selectedLogDetail: SelectedLogWrapper? = nil
     @State private var dayEditorTarget: DayEditorWrapper? = nil
-    @State private var showingAddTypeDialog = false
-    @State private var addMode: CalendarAddMode? = nil
+    @State private var addIntakeTarget: AddIntakeWrapper? = nil
     @State private var showShoppingDisclaimerAlert = false
     @State private var pendingCount: Int = 0
     @State private var calendarRefreshTick: Int = 0
@@ -130,8 +130,6 @@ struct CalendarView: View {
                         }
                         .foregroundStyle(AppTheme.brandRed)
                         .accessibilityLabel(L10n.tr("button_edit"))
-                        .disabled(showingAddTypeDialog)
-                        .opacity(showingAddTypeDialog ? 0.35 : 1)
                     }
 
                     Button {
@@ -142,8 +140,6 @@ struct CalendarView: View {
                     }
                     .foregroundStyle(AppTheme.brandRed)
                     .accessibilityLabel(L10n.tr("tab_not_taken"))
-                    .disabled(showingAddTypeDialog)
-                    .opacity(showingAddTypeDialog ? 0.35 : 1)
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button {
@@ -156,34 +152,14 @@ struct CalendarView: View {
                         ShoppingCartIconView(count: shoppingCartCount)
                     }
                     .foregroundStyle(AppTheme.brandRed)
-                    .disabled(showingAddTypeDialog)
-                    .opacity(showingAddTypeDialog ? 0.35 : 1)
 
                     Button {
-                        showingAddTypeDialog = true
+                        let target = Calendar.current.startOfDay(for: selectedDay ?? Date())
+                        addIntakeTarget = AddIntakeWrapper(day: target)
                     } label: {
                         Image(systemName: "plus")
                     }
                     .foregroundStyle(AppTheme.brandRed)
-                    .disabled(showingAddTypeDialog)
-                    .opacity(showingAddTypeDialog ? 0.35 : 1)
-                }
-            }
-            .overlay {
-                if showingAddTypeDialog {
-                    CalendarAddMedicationTypeOverlay(
-                        onChooseScheduled: {
-                            showingAddTypeDialog = false
-                            addMode = .scheduled
-                        },
-                        onChooseOccasional: {
-                            showingAddTypeDialog = false
-                            addMode = .occasional
-                        },
-                        onCancel: { showingAddTypeDialog = false }
-                    )
-                    .transition(.opacity)
-                    .zIndex(2)
                 }
             }
             .sheet(item: $selectedLogDetail) { wrap in
@@ -196,13 +172,14 @@ struct CalendarView: View {
             .sheet(item: $dayEditorTarget) { wrap in
                 DayDetailView(day: wrap.date)
             }
-            .sheet(item: $addMode) { mode in
-                let target = Calendar.current.startOfDay(for: selectedDay ?? Date())
-                EditMedicationView(
-                    medication: nil,
-                    creationKind: mode.kind,
-                    initialStartDate: target
-                )
+            .sheet(item: $addIntakeTarget) { wrap in
+                AddIntakePickerView(
+                    day: wrap.day,
+                    medications: medications.filter { $0.isActive }
+                ) { medication, option in
+                    createManualIntake(for: medication, day: wrap.day, option: option)
+                    addIntakeTarget = nil
+                }
             }
             .alert(L10n.tr("cart_disclaimer_title"), isPresented: $showShoppingDisclaimerAlert) {
                 Button(L10n.tr("cart_disclaimer_understood")) {
@@ -213,9 +190,8 @@ struct CalendarView: View {
                 Text(L10n.tr("cart_disclaimer_message"))
             }
             .onAppear {
-                // Precarga logs del mes visible para que los estados de color estén listos sin pulsar días.
+                try? IntakeSchedulingService.bootstrapScheduledIntakes(modelContext: modelContext)
                 ensureVisibleMonthLogs()
-                try? LogService.ensureLogs(for: Date(), modelContext: modelContext)
                 if selectedDay == nil {
                     selectedDay = Calendar.current.startOfDay(for: Date())
                 }
@@ -226,17 +202,19 @@ struct CalendarView: View {
             }
             .onChange(of: selectedDay) { _, newValue in
                 if let d = newValue {
-                    let today = Calendar.current.startOfDay(for: Date())
-                    if d >= today {
-                        try? LogService.ensureLogs(for: d, modelContext: modelContext)
-                    }
+                    ensureLogsForIntakes(on: d)
                 }
             }
             .onChange(of: logs.count) { _, _ in
                 refreshPendingCount()
                 calendarRefreshTick &+= 1
             }
+            .onChange(of: intakes.count) { _, _ in
+                ensureVisibleMonthLogs()
+                calendarRefreshTick &+= 1
+            }
             .onChange(of: medications.count) { _, _ in
+                try? IntakeSchedulingService.bootstrapScheduledIntakes(modelContext: modelContext)
                 ensureVisibleMonthLogs()
                 refreshPendingCount()
                 calendarRefreshTick &+= 1
@@ -257,7 +235,7 @@ struct CalendarView: View {
                 monthBase = Date()
                 let today = Calendar.current.startOfDay(for: Date())
                 selectedDay = today
-                try? LogService.ensureLogs(for: today, modelContext: modelContext)
+                ensureLogsForIntakes(on: today)
                 refreshPendingCount()
             }
             .onReceive(NotificationCenter.default.publisher(for: .intakeLogsDidChange)) { _ in
@@ -286,16 +264,89 @@ struct CalendarView: View {
         guard let firstOfMonth = cal.date(from: comps) else { return }
         guard let dayRange = cal.range(of: .day, in: .month, for: firstOfMonth) else { return }
         guard let lastOfMonth = cal.date(byAdding: .day, value: dayRange.count - 1, to: firstOfMonth) else { return }
-        let today = cal.startOfDay(for: Date())
-        let from = max(cal.startOfDay(for: firstOfMonth), today)
+        let from = cal.startOfDay(for: firstOfMonth)
         let to = cal.startOfDay(for: lastOfMonth)
-        guard from <= to else { return }
+        ensureLogsForIntakes(from: from, to: to)
+    }
 
-        try? LogService.ensureLogs(
-            from: from,
-            to: to,
-            modelContext: modelContext
+    private func createManualIntake(for medication: Medication, day: Date, option: IntakeAddOption) {
+        let calendar = Calendar.current
+        let dayKey = calendar.startOfDay(for: day)
+
+        if option == .startSchedule, medication.kind == .scheduled {
+            medication.startDate = dayKey
+            medication.setSkipped(false, on: dayKey)
+            try? IntakeSchedulingService.regenerateFutureIntakes(
+                for: medication,
+                from: dayKey,
+                modelContext: modelContext
+            )
+            ensureLogsForIntakes(on: dayKey)
+            return
+        }
+
+        let intake = Intake(
+            medicationID: medication.id,
+            scheduledAt: calendar.date(bySettingHour: 12, minute: 0, second: 0, of: dayKey) ?? dayKey,
+            source: option == .startSchedule ? .scheduled : .manual
         )
+        modelContext.insert(intake)
+        modelContext.insert(
+            IntakeLog(
+                medicationID: medication.id,
+                intakeID: intake.id,
+                dateKey: dayKey,
+                isTaken: option == .occasionalTaken,
+                takenAt: option == .occasionalTaken ? (calendar.isDateInToday(dayKey) ? Date() : nil) : nil
+            )
+        )
+        try? modelContext.save()
+        NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
+    }
+
+    private func ensureLogsForIntakes(on day: Date) {
+        let key = Calendar.current.startOfDay(for: day)
+        ensureLogsForIntakes(from: key, to: key)
+    }
+
+    private func ensureLogsForIntakes(from start: Date, to end: Date) {
+        let calendar = Calendar.current
+        let startKey = calendar.startOfDay(for: min(start, end))
+        let endKey = calendar.startOfDay(for: max(start, end))
+
+        let intakesInRange = intakes.filter { intake in
+            let key = calendar.startOfDay(for: intake.scheduledAt)
+            return key >= startKey && key <= endKey
+        }
+        guard !intakesInRange.isEmpty else { return }
+
+        let existingLogKeys = Set(logs.compactMap { log -> String? in
+            guard let intakeID = log.intakeID else { return nil }
+            return "\(intakeID.uuidString)-\(calendar.startOfDay(for: log.dateKey).timeIntervalSinceReferenceDate)"
+        })
+
+        var inserted = false
+        for intake in intakesInRange {
+            let dayKey = calendar.startOfDay(for: intake.scheduledAt)
+            let key = "\(intake.id.uuidString)-\(dayKey.timeIntervalSinceReferenceDate)"
+            if existingLogKeys.contains(key) { continue }
+
+            modelContext.insert(
+                IntakeLog(
+                    medicationID: intake.medicationID,
+                    intakeID: intake.id,
+                    dateKey: dayKey,
+                    isTaken: false,
+                    takenAt: nil
+                )
+            )
+            inserted = true
+        }
+
+        if inserted {
+            try? modelContext.save()
+            NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
+        }
     }
 
     private var header: some View {
@@ -346,46 +397,12 @@ struct CalendarView: View {
     private func statusForDay(_ day: Date) -> DayStatus {
         let cal = Calendar.current
         let key = cal.startOfDay(for: day)
-        let todayKey = cal.startOfDay(for: Date())
-        let activeMeds = medications.filter { $0.isActive }
-        let dayLogs = logs.filter { cal.isDate($0.dateKey, inSameDayAs: key) }
-        let takenByMedication: [UUID: Bool] = dayLogs.reduce(into: [:]) { partial, log in
-            partial[log.medicationID] = (partial[log.medicationID] ?? false) || log.isTaken
-        }
-
-        // En días pasados, el estado se basa solo en el histórico real guardado.
-        // No usar la pauta actual para evitar "mover" visualmente el pasado.
-        if key < todayKey {
-            if dayLogs.isEmpty { return .none }
-            let loggedIDs = Set(dayLogs.map(\.medicationID))
-            let takenCount = loggedIDs.filter { takenByMedication[$0] == true }.count
-            if takenCount == 0 { return .noneTaken }              // rojo
-            if takenCount == loggedIDs.count { return .allTaken } // azul
-            return .someTaken                                     // amarillo
-        }
-
-        let due = activeMeds.filter { $0.isDue(on: key, calendar: cal) }
-
-        // Regla principal: si tocaba medicación pautada, el estado del día se basa en esa pauta.
-        // Si falta log para alguna, cuenta como no tomada.
-        if !due.isEmpty {
-            let dueIDs = Set(due.map(\.id))
-            let takenCount = dueIDs.filter { takenByMedication[$0] == true }.count
-            if takenCount == 0 { return .noneTaken }         // rojo
-            if takenCount == dueIDs.count { return .allTaken } // azul
-            return .someTaken                                // amarillo
-        }
-
-        // Si no tocaba nada por pauta, usa lo que haya en logs del día (p.ej. ocasionales).
-        if !dayLogs.isEmpty {
-            let loggedIDs = Set(dayLogs.map(\.medicationID))
-            let takenCount = loggedIDs.filter { takenByMedication[$0] == true }.count
-            if takenCount == 0 { return .noneTaken }            // rojo
-            if takenCount == loggedIDs.count { return .allTaken } // azul
-            return .someTaken                                   // amarillo
-        }
-
-        return .none // blanco: no tocaba nada
+        let rows = rowsForDay(key)
+        if rows.isEmpty { return .none }
+        let takenCount = rows.filter { $0.log.isTaken }.count
+        if takenCount == 0 { return .noneTaken }
+        if takenCount == rows.count { return .allTaken }
+        return .someTaken
     }
 
     private func color(for status: DayStatus) -> Color {
@@ -470,7 +487,7 @@ struct CalendarView: View {
                     .frame(maxWidth: .infinity)
             } else {
                 LazyVStack(spacing: 6) {
-                    ForEach(items, id: \.med.id) { item in
+                    ForEach(items) { item in
                         Button {
                             selectedLogDetail = SelectedLogWrapper(med: item.med, log: item.log, dayKey: dayKey)
                         } label: {
@@ -511,39 +528,37 @@ struct CalendarView: View {
         .padding(.horizontal, isCompactLayout ? 8 : 10)
     }
 
-    private func rowsForDay(_ dayKey: Date) -> [(med: Medication, log: IntakeLog)] {
+    private func rowsForDay(_ dayKey: Date) -> [CalendarRow] {
         let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
+        let dayIntakes = intakes.filter { cal.isDate($0.scheduledAt, inSameDayAs: dayKey) }
         let dayLogs = logs.filter { cal.isDate($0.dateKey, inSameDayAs: dayKey) }
         let medsByID = Dictionary(uniqueKeysWithValues: medications.map { ($0.id, $0) })
 
-        if dayKey < today {
-            let active = medications.filter { $0.isActive }
-            let due = active.filter { $0.isDue(on: dayKey, calendar: cal) }
-            let dueIDs = Set(due.map(\.id))
-            let logIDs = Set(dayLogs.map(\.medicationID))
-            let idsToShow = dueIDs.union(logIDs)
-
-            let medsToShow = idsToShow.compactMap { medsByID[$0] }
-            .sorted {
-                let o0 = $0.sortOrder ?? 0
-                let o1 = $1.sortOrder ?? 0
-                if o0 != o1 { return o0 < o1 }
-                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        if !dayIntakes.isEmpty {
+            let sortedIntakes = dayIntakes.sorted { lhs, rhs in
+                let lm = medsByID[lhs.medicationID]
+                let rm = medsByID[rhs.medicationID]
+                let lo = lm?.sortOrder ?? 0
+                let ro = rm?.sortOrder ?? 0
+                if lo != ro { return lo < ro }
+                if lm?.name != rm?.name {
+                    return (lm?.name ?? "").localizedCaseInsensitiveCompare(rm?.name ?? "") == .orderedAscending
+                }
+                return lhs.scheduledAt < rhs.scheduledAt
             }
 
-            return medsToShow.compactMap { med in
-                guard let log = dayLogs.first(where: { $0.medicationID == med.id }) else { return nil }
-                return (med: med, log: log)
+            return sortedIntakes.compactMap { intake in
+                guard let med = medsByID[intake.medicationID] else { return nil }
+                let log = dayLogs.first(where: { $0.intakeID == intake.id })
+                    ?? dayLogs.first(where: { $0.medicationID == med.id })
+                guard let log else { return nil }
+                return CalendarRow(id: intake.id, med: med, log: log)
             }
         }
 
-        let active = medications.filter { $0.isActive }
-        let due = active
-            .filter { $0.isDue(on: dayKey, calendar: cal) }
-        let dueIDs = Set(due.map(\.id))
-
-        let medsToShow = dueIDs.compactMap { medsByID[$0] }.sorted {
+        // Fallback legado para datos antiguos sin tomas persistidas.
+        let uniqueMedicationIDs = Set(dayLogs.map(\.medicationID))
+        let medsToShow = uniqueMedicationIDs.compactMap { medsByID[$0] }.sorted {
             let o0 = $0.sortOrder ?? 0
             let o1 = $1.sortOrder ?? 0
             if o0 != o1 { return o0 < o1 }
@@ -552,8 +567,14 @@ struct CalendarView: View {
 
         return medsToShow.compactMap { med in
             guard let log = dayLogs.first(where: { $0.medicationID == med.id }) else { return nil }
-            return (med: med, log: log)
+            return CalendarRow(id: log.id, med: med, log: log)
         }
+    }
+
+    struct CalendarRow: Identifiable {
+        let id: UUID
+        let med: Medication
+        let log: IntakeLog
     }
 
     struct SelectedLogWrapper: Identifiable {
@@ -572,63 +593,101 @@ struct CalendarView: View {
         let id = UUID()
         let date: Date
     }
+
+    struct AddIntakeWrapper: Identifiable {
+        let id = UUID()
+        let day: Date
+    }
 }
 
-private enum CalendarAddMode: Int, Identifiable {
-    case scheduled
-    case occasional
+private struct AddIntakePickerView: View {
+    @Environment(\.dismiss) private var dismiss
+    let day: Date
+    let medications: [Medication]
+    let onSelect: (Medication, IntakeAddOption) -> Void
+    @State private var searchText = ""
+    @State private var selectedMedication: Medication? = nil
+    @State private var showTypeSelector = false
 
-    var id: Int { rawValue }
+    private var filtered: [Medication] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else {
+            return medications.sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
+        }
+        return medications
+            .filter { $0.name.localizedCaseInsensitiveContains(query) }
+            .sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
+    }
 
-    var kind: MedicationKind {
-        switch self {
-        case .scheduled: return .scheduled
-        case .occasional: return .occasional
+    var body: some View {
+        NavigationStack {
+            List {
+                if filtered.isEmpty {
+                    Text(L10n.tr("medications_search_no_results"))
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(filtered) { medication in
+                        Button {
+                            selectedMedication = medication
+                            showTypeSelector = true
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(medication.name)
+                                    .foregroundStyle(.primary)
+                                Text(medication.kind == .scheduled ? L10n.tr("medications_section_scheduled") : L10n.tr("medications_section_occasional"))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .navigationTitle(Fmt.dayLong(day))
+            .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $searchText, prompt: L10n.tr("medications_search_placeholder"))
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(L10n.tr("button_cancel")) { dismiss() }
+                }
+            }
+            .confirmationDialog(
+                L10n.tr("medication_add_type_title"),
+                isPresented: $showTypeSelector,
+                titleVisibility: .visible
+            ) {
+                if let medication = selectedMedication {
+                    ForEach(IntakeAddOption.options(for: medication.kind), id: \.self) { option in
+                        Button(option.title) {
+                            onSelect(medication, option)
+                        }
+                    }
+                }
+                Button(L10n.tr("button_cancel"), role: .cancel) {}
+            }
         }
     }
 }
 
-private struct CalendarAddMedicationTypeOverlay: View {
-    let onChooseScheduled: () -> Void
-    let onChooseOccasional: () -> Void
-    let onCancel: () -> Void
+private enum IntakeAddOption: Hashable {
+    case occasionalTaken
+    case startSchedule
 
-    var body: some View {
-        ZStack(alignment: .bottom) {
-            Color.black.opacity(0.62)
-                .ignoresSafeArea()
-                .onTapGesture(perform: onCancel)
+    var title: String {
+        switch self {
+        case .occasionalTaken:
+            return "Toma ocasional (marcada)"
+        case .startSchedule:
+            return "Comienzo de pauta"
+        }
+    }
 
-            VStack(spacing: 12) {
-                Text(L10n.tr("medication_add_type_title"))
-                    .font(.headline)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                Button(action: onChooseScheduled) {
-                    Label(L10n.tr("medication_add_scheduled"), systemImage: "calendar.badge.plus")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 10)
-                }
-                .buttonStyle(.plain)
-
-                Button(action: onChooseOccasional) {
-                    Label(L10n.tr("medication_add_occasional"), systemImage: "plus.circle")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 10)
-                }
-                .buttonStyle(.plain)
-
-                Divider()
-
-                Button(L10n.tr("button_cancel"), action: onCancel)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
-            }
-            .padding(16)
-            .background(.regularMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .padding(.horizontal, 12)
-            .padding(.bottom, 8)
+    static func options(for kind: MedicationKind) -> [IntakeAddOption] {
+        switch kind {
+        case .occasional:
+            return [.occasionalTaken]
+        case .scheduled:
+            return [.occasionalTaken, .startSchedule]
         }
     }
 }

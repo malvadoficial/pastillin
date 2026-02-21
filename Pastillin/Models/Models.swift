@@ -24,6 +24,11 @@ enum UIAppearanceMode: Int, Codable, CaseIterable {
     case dark
 }
 
+enum IntakeSource: Int, Codable {
+    case scheduled
+    case manual
+}
+
 @Model
 final class Medication {
     @Attribute(.unique) var id: UUID
@@ -239,16 +244,45 @@ final class Medication {
 final class IntakeLog {
     @Attribute(.unique) var id: UUID
     var medicationID: UUID
+    var intakeID: UUID?
     var dateKey: Date               // startOfDay
     var isTaken: Bool               // false = no tomada, true = tomada
     var takenAt: Date?              // hora real si tomada
 
-    init(medicationID: UUID, dateKey: Date, isTaken: Bool = false, takenAt: Date? = nil) {
+    init(medicationID: UUID, intakeID: UUID? = nil, dateKey: Date, isTaken: Bool = false, takenAt: Date? = nil) {
         self.id = UUID()
         self.medicationID = medicationID
+        self.intakeID = intakeID
         self.dateKey = dateKey
         self.isTaken = isTaken
         self.takenAt = takenAt
+    }
+}
+
+@Model
+final class Intake {
+    @Attribute(.unique) var id: UUID
+    var medicationID: UUID
+    var scheduledAt: Date
+    var sourceRaw: Int
+    var createdAt: Date
+
+    init(
+        medicationID: UUID,
+        scheduledAt: Date,
+        source: IntakeSource = .scheduled,
+        createdAt: Date = Date()
+    ) {
+        self.id = UUID()
+        self.medicationID = medicationID
+        self.scheduledAt = scheduledAt
+        self.sourceRaw = source.rawValue
+        self.createdAt = createdAt
+    }
+
+    var source: IntakeSource {
+        get { IntakeSource(rawValue: sourceRaw) ?? .scheduled }
+        set { sourceRaw = newValue.rawValue }
     }
 }
 

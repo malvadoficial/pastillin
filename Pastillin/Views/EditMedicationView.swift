@@ -913,13 +913,24 @@ struct EditMedicationView: View {
             upsertOccasionalPastLogIfNeeded(for: targetMed, date: chosenDate)
         }
 
+        let scheduleChanged = previousScheduleSignature.map { $0 != scheduledSignature(for: targetMed) } ?? true
+
         if kind == .scheduled, targetMed.isActive {
-            let scheduleChanged = previousScheduleSignature.map { $0 != scheduledSignature(for: targetMed) } ?? true
             if scheduleChanged {
                 rebuildScheduledLogsForCurrentConfiguration(for: targetMed)
             } else {
                 cleanupScheduledLogsForCurrentConfiguration(for: targetMed)
             }
+        }
+
+        if kind == .scheduled, targetMed.isActive {
+            syncScheduledIntakes(
+                for: targetMed,
+                scheduleChanged: scheduleChanged,
+                anchorDate: chosenDate
+            )
+        } else {
+            removeAllIntakes(for: targetMed.id)
         }
 
         try? modelContext.save()
@@ -1107,6 +1118,7 @@ struct EditMedicationView: View {
         guard let med = medication else { return }
         let medID = med.id
 
+        removeAllIntakes(for: medID)
         for log in allLogs where log.medicationID == medID {
             modelContext.delete(log)
         }
@@ -1257,6 +1269,36 @@ struct EditMedicationView: View {
         guard start <= today else { return }
 
         try? LogService.ensureLogs(from: start, to: today, modelContext: modelContext)
+    }
+
+    private func syncScheduledIntakes(for medication: Medication, scheduleChanged: Bool, anchorDate: Date) {
+        guard medication.kind == .scheduled else { return }
+        guard medication.isActive else { return }
+
+        let anchorDay = Calendar.current.startOfDay(for: anchorDate)
+        if scheduleChanged {
+            try? IntakeSchedulingService.regenerateFutureIntakes(
+                for: medication,
+                from: anchorDay,
+                modelContext: modelContext
+            )
+        } else {
+            try? IntakeSchedulingService.generateInitialIntakes(
+                for: medication,
+                modelContext: modelContext,
+                referenceDate: anchorDay
+            )
+        }
+    }
+
+    private func removeAllIntakes(for medicationID: UUID) {
+        let descriptor = FetchDescriptor<Intake>(
+            predicate: #Predicate { $0.medicationID == medicationID }
+        )
+        let intakes = (try? modelContext.fetch(descriptor)) ?? []
+        for intake in intakes {
+            modelContext.delete(intake)
+        }
     }
 
     private func syncOccasionalReminder(for med: Medication) {

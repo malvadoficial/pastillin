@@ -16,6 +16,7 @@ struct PastillinApp: App {
         let schema = Schema([
             Medication.self,
             IntakeLog.self,
+            Intake.self,
             AppSettings.self
         ])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)

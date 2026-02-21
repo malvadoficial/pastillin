@@ -35,6 +35,7 @@ struct SplashGateView: View {
             guard showSplash else { return }
             runDeleteAllDataIfNeeded()
             runTutorialCleanupIfNeeded()
+            try? IntakeSchedulingService.bootstrapScheduledIntakes(modelContext: modelContext)
             try? await Task.sleep(nanoseconds: splashDuration)
             withAnimation(.easeOut(duration: 0.25)) {
                 showSplash = false

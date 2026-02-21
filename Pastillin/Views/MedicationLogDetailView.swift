@@ -14,6 +14,7 @@ struct MedicationLogDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Query private var medications: [Medication]
     @Query private var allLogs: [IntakeLog]
+    @Query private var allIntakes: [Intake]
     @Query private var appSettings: [AppSettings]
     @AppStorage("selectedTab") private var selectedTab: AppTab = .today
     @AppStorage("shoppingCartDisclaimerShown") private var shoppingCartDisclaimerShown: Bool = false
@@ -159,6 +160,16 @@ struct MedicationLogDetailView: View {
                             L10n.tr("detail_label_time_taken"),
                             selection: takenAtBinding,
                             displayedComponents: [.hourAndMinute]
+                        )
+                    }
+                }
+
+                if medication.kind == .scheduled {
+                    Section(L10n.tr("edit_date_start")) {
+                        DatePicker(
+                            L10n.tr("edit_date_start"),
+                            selection: scheduledDateBinding,
+                            displayedComponents: [.date]
                         )
                     }
                 }
@@ -323,6 +334,15 @@ struct MedicationLogDetailView: View {
         )
     }
 
+    private var scheduledDateBinding: Binding<Date> {
+        Binding(
+            get: { log.dateKey },
+            set: { newDate in
+                updateScheduledDate(to: newDate)
+            }
+        )
+    }
+
     // MARK: - Helpers
 
     private func dateString(_ d: Date) -> String {
@@ -400,10 +420,47 @@ struct MedicationLogDetailView: View {
     private func removeScheduledForThisDay() {
         guard medication.kind == .scheduled else { return }
         medication.setSkipped(true, on: dayKey)
+        if let intakeID = log.intakeID,
+           let intake = allIntakes.first(where: { $0.id == intakeID }) {
+            modelContext.delete(intake)
+        }
         modelContext.delete(log)
         try? modelContext.save()
         NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
         dismiss()
+    }
+
+    private func updateScheduledDate(to newDate: Date) {
+        let cal = Calendar.current
+        let oldDay = cal.startOfDay(for: log.dateKey)
+        let newDay = cal.startOfDay(for: newDate)
+        guard oldDay != newDay else { return }
+
+        if medication.kind == .scheduled,
+           let intakeID = log.intakeID,
+           let intake = allIntakes.first(where: { $0.id == intakeID }) {
+            try? IntakeSchedulingService.moveScheduledIntakeAndReflow(
+                medication: medication,
+                intake: intake,
+                newDate: newDay,
+                modelContext: modelContext
+            )
+        } else if let intakeID = log.intakeID,
+                  let intake = allIntakes.first(where: { $0.id == intakeID }) {
+            intake.scheduledAt = cal.date(bySettingHour: 12, minute: 0, second: 0, of: newDay) ?? newDay
+        }
+
+        log.dateKey = newDay
+        if let takenAt = log.takenAt {
+            let hm = cal.dateComponents([.hour, .minute], from: takenAt)
+            var comps = cal.dateComponents([.year, .month, .day], from: newDay)
+            comps.hour = hm.hour
+            comps.minute = hm.minute
+            log.takenAt = cal.date(from: comps) ?? newDay
+        }
+
+        try? modelContext.save()
+        NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
     }
 
     private func deleteOccasionalMedication() {

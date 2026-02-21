@@ -12,6 +12,7 @@ struct TodayView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var medications: [Medication]
     @Query private var logs: [IntakeLog]
+    @Query private var intakes: [Intake]
     @AppStorage("selectedTab") private var selectedTab: AppTab = .today
     @AppStorage("lastTabBeforeNoTaken") private var lastTabBeforeNoTakenRaw: String = AppTab.today.rawValue
     @AppStorage("shoppingCartDisclaimerShown") private var shoppingCartDisclaimerShown: Bool = false
@@ -19,8 +20,7 @@ struct TodayView: View {
     @State private var rows: [TodayRow] = []
     @State private var showShoppingDisclaimerAlert = false
     @State private var selected: SelectedWrapper? = nil
-    @State private var showingAddTypeDialog = false
-    @State private var addMode: TodayAddMode? = nil
+    @State private var addIntakeTarget: AddTodayIntakeTarget? = nil
     @State private var showHelpFromGuide = false
     @State private var didDismissGettingStartedOverlay = false
     @State private var plusButtonFrame: CGRect = .zero
@@ -33,7 +33,7 @@ struct TodayView: View {
         medications.isEmpty && logs.isEmpty
     }
     private var shouldShowGettingStartedOverlay: Bool {
-        isFirstRunOrCleanState && rows.isEmpty && !showingAddTypeDialog && !didDismissGettingStartedOverlay
+        isFirstRunOrCleanState && rows.isEmpty && addIntakeTarget == nil && !didDismissGettingStartedOverlay
     }
     private var shoppingCartCount: Int {
         medications.filter { $0.inShoppingCart }.count
@@ -204,7 +204,7 @@ struct TodayView: View {
                     .foregroundStyle(AppTheme.brandBlue)
 
                     Button {
-                        showingAddTypeDialog = true
+                        addIntakeTarget = AddTodayIntakeTarget(day: Calendar.current.startOfDay(for: Date()))
                     } label: {
                         ZStack {
                             Circle()
@@ -226,27 +226,11 @@ struct TodayView: View {
                 }
             }
             .overlay {
-                if showingAddTypeDialog {
-                    TodayAddMedicationTypeOverlay(
-                        onChooseScheduled: {
-                            showingAddTypeDialog = false
-                            addMode = .scheduled
-                        },
-                        onChooseOccasional: {
-                            showingAddTypeDialog = false
-                            addMode = .occasional
-                        },
-                        onCancel: { showingAddTypeDialog = false }
-                    )
-                    .transition(.opacity)
-                    .zIndex(2)
-                }
-
                 if shouldShowGettingStartedOverlay {
                     TodayGettingStartedOverlay(
                         plusFrame: plusButtonFrame,
                         helpFrame: helpButtonFrame,
-                        onTapPlus: { showingAddTypeDialog = true },
+                        onTapPlus: { addIntakeTarget = AddTodayIntakeTarget(day: Calendar.current.startOfDay(for: Date())) },
                         onTapHelp: {
                             didDismissGettingStartedOverlay = true
                             showHelpFromGuide = true
@@ -264,15 +248,21 @@ struct TodayView: View {
                 helpButtonFrame = frame
             }
             .onAppear {
-                try? LogService.ensureLogs(for: Date(), modelContext: modelContext)
+                try? IntakeSchedulingService.bootstrapScheduledIntakes(modelContext: modelContext)
+                ensureLogsForIntakesToday()
                 normalizeSortOrderIfNeeded()
                 reload()
             }
             .onChange(of: medications.count) { _, _ in
-                try? LogService.ensureLogs(for: Date(), modelContext: modelContext)
+                try? IntakeSchedulingService.bootstrapScheduledIntakes(modelContext: modelContext)
+                ensureLogsForIntakesToday()
                 reload()
             }
             .onChange(of: logs.count) { _, _ in
+                reload()
+            }
+            .onChange(of: intakes.count) { _, _ in
+                ensureLogsForIntakesToday()
                 reload()
             }
             .sheet(item: $selected) { wrap in
@@ -282,22 +272,13 @@ struct TodayView: View {
                     log: wrap.log
                 )
             }
-            .sheet(item: $addMode) { mode in
-                switch mode {
-                case .scheduled:
-                    EditMedicationView(
-                        medication: nil,
-                        creationKind: .scheduled,
-                        markTakenNowOnCreate: false,
-                        initialStartDate: Date()
-                    )
-                case .occasional:
-                    EditMedicationView(
-                        medication: nil,
-                        creationKind: .occasional,
-                        markTakenNowOnCreate: true,
-                        initialStartDate: Date()
-                    )
+            .sheet(item: $addIntakeTarget) { target in
+                TodayAddIntakePickerView(
+                    day: target.day,
+                    medications: medications.filter { $0.isActive }
+                ) { medication, option in
+                    createTodayIntake(for: medication, option: option, day: target.day)
+                    addIntakeTarget = nil
                 }
             }
             .sheet(isPresented: $showHelpFromGuide) {
@@ -370,26 +351,100 @@ struct TodayView: View {
     private func reload() {
         let cal = Calendar.current
         let key = cal.startOfDay(for: Date())
-
-        let activeMeds = medications.filter { $0.isActive }
-        let dueMeds = activeMeds.filter { $0.isDue(on: key, calendar: cal) }
-
+        let todayIntakes = intakes.filter { cal.isDate($0.scheduledAt, inSameDayAs: key) }
         let todayLogs = logs.filter { cal.isDate($0.dateKey, inSameDayAs: key) }
+        let medsByID = Dictionary(uniqueKeysWithValues: medications.map { ($0.id, $0) })
 
         var temp: [TodayRow] = []
-        for med in dueMeds {
-            if let log = todayLogs.first(where: { $0.medicationID == med.id }) {
-                temp.append(TodayRow(id: med.id, medication: med, log: log))
+        let sortedIntakes = todayIntakes.sorted { lhs, rhs in
+            let lm = medsByID[lhs.medicationID]
+            let rm = medsByID[rhs.medicationID]
+            let lo = lm?.sortOrder ?? 0
+            let ro = rm?.sortOrder ?? 0
+            if lo != ro { return lo < ro }
+            if lm?.name != rm?.name {
+                return (lm?.name ?? "").localizedCaseInsensitiveCompare(rm?.name ?? "") == .orderedAscending
             }
+            return lhs.scheduledAt < rhs.scheduledAt
         }
-        rows = temp.sorted {
-            let o0 = $0.medication.sortOrder ?? 0
-            let o1 = $1.medication.sortOrder ?? 0
-            if o0 != o1 {
-                return o0 < o1
-            }
-            return $0.medication.name.localizedCaseInsensitiveCompare($1.medication.name) == .orderedAscending
+
+        for intake in sortedIntakes {
+            guard let med = medsByID[intake.medicationID] else { continue }
+            guard let log = todayLogs.first(where: { $0.intakeID == intake.id })
+                ?? todayLogs.first(where: { $0.medicationID == med.id }) else { continue }
+            temp.append(TodayRow(id: intake.id, medication: med, log: log))
         }
+        rows = temp
+    }
+
+    private func ensureLogsForIntakesToday() {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let todayIntakes = intakes.filter { cal.isDate($0.scheduledAt, inSameDayAs: today) }
+        guard !todayIntakes.isEmpty else { return }
+
+        let existingLogKeys = Set(logs.compactMap { log -> String? in
+            guard let intakeID = log.intakeID else { return nil }
+            return "\(intakeID.uuidString)-\(cal.startOfDay(for: log.dateKey).timeIntervalSinceReferenceDate)"
+        })
+
+        var inserted = false
+        for intake in todayIntakes {
+            let key = "\(intake.id.uuidString)-\(today.timeIntervalSinceReferenceDate)"
+            if existingLogKeys.contains(key) { continue }
+            modelContext.insert(
+                IntakeLog(
+                    medicationID: intake.medicationID,
+                    intakeID: intake.id,
+                    dateKey: today,
+                    isTaken: false,
+                    takenAt: nil
+                )
+            )
+            inserted = true
+        }
+
+        if inserted {
+            try? modelContext.save()
+            NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
+        }
+    }
+
+    private func createTodayIntake(for medication: Medication, option: TodayIntakeAddOption, day: Date) {
+        let cal = Calendar.current
+        let dayKey = cal.startOfDay(for: day)
+
+        if option == .startSchedule, medication.kind == .scheduled {
+            medication.startDate = dayKey
+            medication.setSkipped(false, on: dayKey)
+            try? IntakeSchedulingService.regenerateFutureIntakes(
+                for: medication,
+                from: dayKey,
+                modelContext: modelContext
+            )
+            ensureLogsForIntakesToday()
+            reload()
+            return
+        }
+
+        let intake = Intake(
+            medicationID: medication.id,
+            scheduledAt: cal.date(bySettingHour: 12, minute: 0, second: 0, of: dayKey) ?? dayKey,
+            source: option == .startSchedule ? .scheduled : .manual
+        )
+        modelContext.insert(intake)
+        modelContext.insert(
+            IntakeLog(
+                medicationID: medication.id,
+                intakeID: intake.id,
+                dateKey: dayKey,
+                isTaken: option == .occasionalTaken,
+                takenAt: option == .occasionalTaken ? (cal.isDateInToday(dayKey) ? Date() : nil) : nil
+            )
+        )
+        try? modelContext.save()
+        NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
+        reload()
     }
 
     @ViewBuilder
@@ -419,11 +474,9 @@ struct TodayView: View {
         let dayKey: Date
     }
 
-    enum TodayAddMode: Int, Identifiable {
-        case scheduled
-        case occasional
-
-        var id: Int { rawValue }
+    struct AddTodayIntakeTarget: Identifiable {
+        let id = UUID()
+        let day: Date
     }
 }
 
@@ -561,47 +614,94 @@ private struct TodayGettingStartedOverlay: View {
     }
 }
 
-private struct TodayAddMedicationTypeOverlay: View {
-    let onChooseScheduled: () -> Void
-    let onChooseOccasional: () -> Void
-    let onCancel: () -> Void
+private struct TodayAddIntakePickerView: View {
+    @Environment(\.dismiss) private var dismiss
+    let day: Date
+    let medications: [Medication]
+    let onSelect: (Medication, TodayIntakeAddOption) -> Void
+    @State private var searchText = ""
+    @State private var selectedMedication: Medication? = nil
+    @State private var showTypeSelector = false
+
+    private var filtered: [Medication] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else {
+            return medications.sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
+        }
+        return medications
+            .filter { $0.name.localizedCaseInsensitiveContains(query) }
+            .sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
+    }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            Color.black.opacity(0.62)
-                .ignoresSafeArea()
-                .onTapGesture(perform: onCancel)
-
-            VStack(spacing: 12) {
-                Text(L10n.tr("medication_add_type_title"))
-                    .font(.headline)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                Button(action: onChooseScheduled) {
-                    Label(L10n.tr("medication_add_scheduled"), systemImage: "calendar.badge.plus")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 10)
+        NavigationStack {
+            List {
+                if filtered.isEmpty {
+                    Text(L10n.tr("medications_search_no_results"))
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(filtered) { medication in
+                        Button {
+                            selectedMedication = medication
+                            showTypeSelector = true
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(medication.name)
+                                    .foregroundStyle(.primary)
+                                Text(medication.kind == .scheduled ? L10n.tr("medications_section_scheduled") : L10n.tr("medications_section_occasional"))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-                .buttonStyle(.plain)
-
-                Button(action: onChooseOccasional) {
-                    Label(L10n.tr("medication_add_occasional"), systemImage: "plus.circle")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 10)
-                }
-                .buttonStyle(.plain)
-
-                Divider()
-
-                Button(L10n.tr("button_cancel"), action: onCancel)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
             }
-            .padding(16)
-            .background(.regularMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .padding(.horizontal, 12)
-            .padding(.bottom, 8)
+            .navigationTitle(Fmt.dayLong(day))
+            .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $searchText, prompt: L10n.tr("medications_search_placeholder"))
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(L10n.tr("button_cancel")) { dismiss() }
+                }
+            }
+            .confirmationDialog(
+                L10n.tr("medication_add_type_title"),
+                isPresented: $showTypeSelector,
+                titleVisibility: .visible
+            ) {
+                if let medication = selectedMedication {
+                    ForEach(TodayIntakeAddOption.options(for: medication.kind), id: \.self) { option in
+                        Button(option.title) {
+                            onSelect(medication, option)
+                        }
+                    }
+                }
+                Button(L10n.tr("button_cancel"), role: .cancel) {}
+            }
+        }
+    }
+}
+
+private enum TodayIntakeAddOption: Hashable {
+    case occasionalTaken
+    case startSchedule
+
+    var title: String {
+        switch self {
+        case .occasionalTaken:
+            return "Toma ocasional (marcada)"
+        case .startSchedule:
+            return "Comienzo de pauta"
+        }
+    }
+
+    static func options(for kind: MedicationKind) -> [TodayIntakeAddOption] {
+        switch kind {
+        case .occasional:
+            return [.occasionalTaken]
+        case .scheduled:
+            return [.occasionalTaken, .startSchedule]
         }
     }
 }
