@@ -13,16 +13,19 @@ struct EditMedicationView: View {
     let creationKind: MedicationKind?
     let markTakenNowOnCreate: Bool
     let initialStartDate: Date?
+    let overrideStartDateOnEdit: Date?
     let prefill: MedicationPrefillData?
     let openedFromCabinet: Bool
 
     @State private var name: String = ""
     @State private var note: String = ""
     @State private var isActive: Bool = true
+    @State private var selectedCreationKind: MedicationKind
 
     @State private var repeatUnit: RepeatUnit = .day
     @State private var interval: Int = 1
     @State private var isDailySchedule: Bool = true
+    @State private var threeTimesDaily: Bool = false
     @State private var startDate: Date = Date()
     @State private var occasionalReminderEnabled: Bool = false
     @State private var occasionalReminderTime: Date = Date()
@@ -45,6 +48,7 @@ struct EditMedicationView: View {
     @State private var cimaLaboratorio: String? = nil
     @State private var cimaProspectoURL: String? = nil
     @State private var isLoadingCIMADetail = false
+    @State private var showOfficialInfoExpanded = false
     @State private var prospectoSheetURL: URLSheetItem? = nil
     @State private var historyLogForActions: IntakeLog? = nil
     @State private var historyEditedTime: Date = Date()
@@ -54,6 +58,7 @@ struct EditMedicationView: View {
     @State private var showOccasionalTodayIntakeAlert = false
     @State private var occasionalTodayIntakeTime: Date = Date()
     @State private var occasionalTodayIntakeWasUpdated = false
+    @State private var showDeactivateReminderAlert = false
 
     @StateObject private var nameAutocomplete = MedicationNameAutocompleteViewModel()
     @FocusState private var focusedField: Field?
@@ -61,11 +66,21 @@ struct EditMedicationView: View {
 
     // 🔹 Logs para el historial
     @Query private var allLogs: [IntakeLog]
+    @Query private var allIntakes: [Intake]
     @Query private var allMeds: [Medication]
     @Query private var appSettings: [AppSettings]
     private let maxHistoryItems = 30
-    private var effectiveKind: MedicationKind { medication?.kind ?? creationKind ?? .scheduled }
+    private var effectiveKind: MedicationKind {
+        if let medication, medication.kind != .unspecified {
+            return medication.kind
+        }
+        return selectedCreationKind
+    }
     private var isOccasionalForm: Bool { effectiveKind == .occasional }
+    private var canChooseKindOnCreate: Bool {
+        if medication == nil { return isActive }
+        return medication?.kind == .unspecified && isActive
+    }
     private var isAutocompleteEnabled: Bool { appSettings.first?.medicationAutocompleteEnabled ?? true }
     private var canConfigureOccasionalReminder: Bool {
         let cal = Calendar.current
@@ -93,6 +108,7 @@ struct EditMedicationView: View {
         creationKind: MedicationKind? = nil,
         markTakenNowOnCreate: Bool = false,
         initialStartDate: Date? = nil,
+        overrideStartDateOnEdit: Date? = nil,
         prefill: MedicationPrefillData? = nil,
         openedFromCabinet: Bool = false
     ) {
@@ -100,8 +116,10 @@ struct EditMedicationView: View {
         self.creationKind = creationKind
         self.markTakenNowOnCreate = markTakenNowOnCreate
         self.initialStartDate = initialStartDate
+        self.overrideStartDateOnEdit = overrideStartDateOnEdit
         self.prefill = prefill
         self.openedFromCabinet = openedFromCabinet
+        self._selectedCreationKind = State(initialValue: creationKind ?? .scheduled)
     }
 
     var body: some View {
@@ -157,6 +175,16 @@ struct EditMedicationView: View {
                     Toggle(L10n.tr("edit_toggle_active"), isOn: $isActive)
                 }
 
+                if canChooseKindOnCreate {
+                    Section(L10n.tr("medication_add_type_title")) {
+                        Picker(L10n.tr("medication_add_type_title"), selection: $selectedCreationKind) {
+                            Text("Pautado").tag(MedicationKind.scheduled)
+                            Text("Ocasional").tag(MedicationKind.occasional)
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                }
+
                 if let med = medication, med.kind == .occasional, openedFromCabinet {
                     Section {
                         Button {
@@ -169,75 +197,83 @@ struct EditMedicationView: View {
                 }
 
                 if hasOfficialInfo || isLoadingCIMADetail {
-                    Section(L10n.tr("official_info_section_title")) {
-                        if let nombreCompleto = cimaNombreCompleto {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(L10n.tr("official_info_full_name"))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Text(nombreCompleto)
-                                    .font(.subheadline.weight(.semibold))
-                            }
-                        }
-
-                        if let principioActivo = cimaPrincipioActivo {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(L10n.tr("official_info_active_ingredient"))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Text(principioActivo)
-                                    .font(.subheadline.weight(.semibold))
-                            }
-                        }
-
-                        if let laboratorio = cimaLaboratorio {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(L10n.tr("official_info_laboratory"))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Text(laboratorio)
-                                    .font(.subheadline.weight(.semibold))
-                            }
-                        }
-
-                        if let cn = cimaCN {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(L10n.tr("official_info_cn"))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Text(cn)
-                                    .font(.subheadline.weight(.semibold))
-                            }
-                        }
-
-                        if hasOfficialInfo {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(L10n.tr("official_info_source"))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Text(L10n.tr("official_info_source_value"))
-                                    .font(.subheadline.weight(.semibold))
-                            }
-                        }
-
-                        if isAutocompleteEnabled {
-                            if let url = resolvedProspectoURL(from: cimaProspectoURL) {
-                                Button {
-                                    prospectoSheetURL = URLSheetItem(url: url)
-                                } label: {
-                                    Label(L10n.tr("official_info_leaflet_button"), systemImage: "doc.text")
+                    Section {
+                        DisclosureGroup(
+                            isExpanded: $showOfficialInfoExpanded,
+                            content: {
+                                if let nombreCompleto = cimaNombreCompleto {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(L10n.tr("official_info_full_name"))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Text(nombreCompleto)
+                                            .font(.subheadline.weight(.semibold))
+                                    }
                                 }
-                            }
-                        }
 
-                        if isLoadingCIMADetail {
-                            HStack(spacing: 8) {
-                                ProgressView()
-                                Text(L10n.tr("official_info_loading"))
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
+                                if let principioActivo = cimaPrincipioActivo {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(L10n.tr("official_info_active_ingredient"))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Text(principioActivo)
+                                            .font(.subheadline.weight(.semibold))
+                                    }
+                                }
+
+                                if let laboratorio = cimaLaboratorio {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(L10n.tr("official_info_laboratory"))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Text(laboratorio)
+                                            .font(.subheadline.weight(.semibold))
+                                    }
+                                }
+
+                                if let cn = cimaCN {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(L10n.tr("official_info_cn"))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Text(cn)
+                                            .font(.subheadline.weight(.semibold))
+                                    }
+                                }
+
+                                if hasOfficialInfo {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(L10n.tr("official_info_source"))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Text(L10n.tr("official_info_source_value"))
+                                            .font(.subheadline.weight(.semibold))
+                                    }
+                                }
+
+                                if isAutocompleteEnabled {
+                                    if let url = resolvedProspectoURL(from: cimaProspectoURL) {
+                                        Button {
+                                            prospectoSheetURL = URLSheetItem(url: url)
+                                        } label: {
+                                            Label(L10n.tr("official_info_leaflet_button"), systemImage: "doc.text")
+                                        }
+                                    }
+                                }
+
+                                if isLoadingCIMADetail {
+                                    HStack(spacing: 8) {
+                                        ProgressView()
+                                        Text(L10n.tr("official_info_loading"))
+                                            .font(.subheadline)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            },
+                            label: {
+                                Text(L10n.tr("official_info_section_title"))
                             }
-                        }
+                        )
                     }
                 }
 
@@ -278,25 +314,49 @@ struct EditMedicationView: View {
                     }
                 } else if !isOccasionalForm && isActive {
                     Section(L10n.tr("edit_section_schedule")) {
-                        DatePicker(L10n.tr("edit_date_start"), selection: $startDate, displayedComponents: [.date])
+                        DatePicker(
+                            L10n.tr("edit_date_start"),
+                            selection: $startDate,
+                            displayedComponents: [.date]
+                        )
+
+                        if !isDailySchedule && repeatUnit == .hour {
+                            DatePicker(
+                                L10n.tr("edit_time_start"),
+                                selection: $startDate,
+                                displayedComponents: [.hourAndMinute]
+                            )
+                        }
 
                         Toggle(L10n.tr("edit_toggle_chronic"), isOn: chronicBinding)
                         if !chronicBinding.wrappedValue {
                             DatePicker(L10n.tr("edit_date_end_included"), selection: $endDate, displayedComponents: [.date])
                         }
 
-                        Toggle(L10n.tr("edit_toggle_daily"), isOn: $isDailySchedule)
-                            .onChange(of: isDailySchedule) { _, newValue in
+                        Toggle(L10n.tr("edit_schedule_three_times_daily"), isOn: $threeTimesDaily)
+                            .onChange(of: threeTimesDaily) { _, newValue in
                                 guard !isOccasionalForm else { return }
                                 if newValue {
+                                    isDailySchedule = true
                                     repeatUnit = .day
                                     interval = 1
-                                } else if repeatUnit == .day && interval == 1 {
-                                    interval = 2
                                 }
                             }
 
-                        if !isDailySchedule {
+                        if !threeTimesDaily {
+                            Toggle(L10n.tr("edit_toggle_daily"), isOn: $isDailySchedule)
+                                .onChange(of: isDailySchedule) { _, newValue in
+                                    guard !isOccasionalForm else { return }
+                                    if newValue {
+                                        repeatUnit = .day
+                                        interval = 1
+                                    } else if repeatUnit == .day && interval == 1 {
+                                        interval = 2
+                                    }
+                                }
+                        }
+
+                        if !threeTimesDaily && !isDailySchedule {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text(L10n.tr("edit_schedule_pattern_label"))
                                     .font(.subheadline.weight(.semibold))
@@ -318,6 +378,7 @@ struct EditMedicationView: View {
                                     Picker(L10n.tr("edit_picker_unit"), selection: $repeatUnit) {
                                         Text(L10n.tr("edit_unit_days")).tag(RepeatUnit.day)
                                         Text(L10n.tr("edit_unit_months")).tag(RepeatUnit.month)
+                                        Text(L10n.tr("edit_unit_hours")).tag(RepeatUnit.hour)
                                     }
                                     .pickerStyle(.segmented)
                                 }
@@ -332,6 +393,8 @@ struct EditMedicationView: View {
                                 guard !isOccasionalForm, !isDailySchedule else { return }
                                 if newValue == .day && interval == 1 {
                                     isDailySchedule = true
+                                } else if newValue != .day {
+                                    isDailySchedule = false
                                 }
                             }
                         }
@@ -428,11 +491,13 @@ struct EditMedicationView: View {
                         Button(L10n.tr("button_cancel")) { dismiss() }
                     }
                     ToolbarItemGroup(placement: .topBarTrailing) {
-                        Button {
-                            selectedTab = .cart
-                            dismiss()
-                        } label: {
-                            ShoppingCartIconView(count: shoppingCartCount)
+                        if shoppingCartCount > 0 {
+                            Button {
+                                selectedTab = .cart
+                                dismiss()
+                            } label: {
+                                ShoppingCartIconView(count: shoppingCartCount)
+                            }
                         }
 
                         Button(L10n.tr("button_save")) { onSaveTapped() }
@@ -473,6 +538,11 @@ struct EditMedicationView: View {
                     }
                 }
             }
+            .onChange(of: isActive) { oldValue, newValue in
+                if oldValue && !newValue {
+                    showDeactivateReminderAlert = shouldShowDeactivateReminder()
+                }
+            }
             .overlay {
                 if showPickerSheet {
                     PhotoSourceOverlay(
@@ -495,6 +565,7 @@ struct EditMedicationView: View {
                         allowsDateEdition: isOccasionalForm,
                         selectedTime: $historyEditedTime,
                         onSaveTime: { saveHistoryTime(for: log) },
+                        onClearTime: { clearHistoryTime(for: log) },
                         onDeleteIntake: { deleteHistoryLog(for: log) },
                         onClose: { historyLogForActions = nil }
                     )
@@ -559,6 +630,11 @@ struct EditMedicationView: View {
                         Fmt.timeShort(occasionalTodayIntakeTime)
                     )
                 )
+            }
+            .alert("Medicamento inactivo", isPresented: $showDeactivateReminderAlert) {
+                Button(L10n.tr("button_ok"), role: .cancel) {}
+            } message: {
+                Text(L10n.tr("medication_inactive_future_intakes_removed"))
             }
             .sheet(item: $prospectoSheetURL) { item in
                 NavigationStack {
@@ -691,11 +767,29 @@ struct EditMedicationView: View {
             name = med.name
             note = med.note ?? ""
             isActive = med.isActive
+            if med.kind == .occasional {
+                selectedCreationKind = .occasional
+            } else {
+                selectedCreationKind = .scheduled
+            }
             repeatUnit = med.repeatUnit
             interval = med.interval
             isDailySchedule = (repeatUnit == .day && interval == 1)
+            threeTimesDaily = med.threeTimesDaily
             if let configuredStartDate = med.startDateRaw {
                 startDate = configuredStartDate
+            }
+            if let overrideStartDateOnEdit {
+                let cal = Calendar.current
+                if med.repeatUnit == .hour {
+                    let hm = cal.dateComponents([.hour, .minute], from: startDate)
+                    var comps = cal.dateComponents([.year, .month, .day], from: cal.startOfDay(for: overrideStartDateOnEdit))
+                    comps.hour = hm.hour
+                    comps.minute = hm.minute
+                    startDate = cal.date(from: comps) ?? cal.startOfDay(for: overrideStartDateOnEdit)
+                } else {
+                    startDate = cal.startOfDay(for: overrideStartDateOnEdit)
+                }
             }
             occasionalReminderEnabled = med.occasionalReminderEnabled
             let h = med.occasionalReminderHour ?? 9
@@ -757,10 +851,12 @@ struct EditMedicationView: View {
             cimaLaboratorio = prefill.cimaLaboratorio
             cimaProspectoURL = prefill.cimaProspectoURL
         }
+        selectedCreationKind = creationKind ?? .scheduled
         occasionalReminderEnabled = false
         occasionalReminderTime = Date()
         occasionalPastTakenTime = Date()
         isDailySchedule = true
+        threeTimesDaily = false
     }
 
     private func onSaveTapped() {
@@ -804,8 +900,19 @@ struct EditMedicationView: View {
         }
 
         let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let chosenDate = Calendar.current.startOfDay(for: startDate)
-        let kind = effectiveKind
+        var kind = effectiveKind
+        if medication == nil && !isActive {
+            kind = .unspecified
+        }
+        let usesThreeTimesDaily = kind == .scheduled && threeTimesDaily
+        let selectedRepeatUnit: RepeatUnit = usesThreeTimesDaily ? .day : (isDailySchedule ? .day : repeatUnit)
+        let selectedInterval = usesThreeTimesDaily ? 1 : (isDailySchedule ? 1 : max(1, interval))
+        let chosenStartDate = normalizedStartDate(
+            from: startDate,
+            kind: kind,
+            repeatUnit: selectedRepeatUnit
+        )
+        let chosenDay = Calendar.current.startOfDay(for: chosenStartDate)
         let previousScheduleSignature: ScheduledSignature? = medication.map { scheduledSignature(for: $0) }
 
         let targetMed: Medication
@@ -825,8 +932,9 @@ struct EditMedicationView: View {
                 med.isActive = isActive
                 med.repeatUnit = .day
                 med.interval = 1
+                med.threeTimesDaily = false
                 if isActive {
-                    med.startDate = chosenDate
+                    med.startDate = chosenDay
                     med.endDate = nil
                     if canConfigureOccasionalReminder && occasionalReminderEnabled {
                         med.occasionalReminderEnabled = true
@@ -848,13 +956,15 @@ struct EditMedicationView: View {
             } else {
                 med.isActive = isActive
                 if isActive {
-                    med.repeatUnit = isDailySchedule ? .day : repeatUnit
-                    med.interval = isDailySchedule ? 1 : max(1, interval)
-                    med.startDate = chosenDate
+                    med.repeatUnit = selectedRepeatUnit
+                    med.interval = selectedInterval
+                    med.threeTimesDaily = usesThreeTimesDaily
+                    med.startDate = chosenStartDate
                     med.endDate = hasEndDate ? endDate : nil
                 } else {
                     med.startDateRaw = nil
                     med.endDate = nil
+                    med.threeTimesDaily = false
                 }
                 med.occasionalReminderEnabled = false
                 med.occasionalReminderHour = nil
@@ -868,11 +978,12 @@ struct EditMedicationView: View {
                 note: note.isEmpty ? nil : note,
                 isActive: isActive,
                 kind: kind,
-                repeatUnit: kind == .occasional ? .day : (isDailySchedule ? .day : repeatUnit),
-                interval: kind == .occasional ? 1 : (isDailySchedule ? 1 : max(1, interval)),
-                startDate: chosenDate,
+                repeatUnit: kind == .occasional ? .day : selectedRepeatUnit,
+                interval: kind == .occasional ? 1 : selectedInterval,
+                startDate: kind == .occasional ? chosenDay : chosenStartDate,
                 endDate: kind == .occasional ? nil : (hasEndDate ? endDate : nil)
             )
+            med.threeTimesDaily = kind == .scheduled && usesThreeTimesDaily
             med.sortOrder = nextOrder
             med.photoData = photoData
             med.cimaNRegistro = cimaNRegistro
@@ -897,7 +1008,7 @@ struct EditMedicationView: View {
                 med.shoppingCartSortOrder = nextCartSortOrder
             }
             if kind == .occasional && med.isActive {
-                upsertOccasionalLogOnCreate(for: med, date: chosenDate)
+                upsertOccasionalLogOnCreate(for: med, date: chosenDay)
             }
             if !med.isActive {
                 med.startDateRaw = nil
@@ -910,11 +1021,12 @@ struct EditMedicationView: View {
         }
 
         if kind == .occasional && targetMed.isActive {
-            upsertOccasionalPastLogIfNeeded(for: targetMed, date: chosenDate)
+            upsertOccasionalPastLogIfNeeded(for: targetMed, date: chosenDay)
         }
 
-        if kind == .scheduled, targetMed.isActive {
-            let scheduleChanged = previousScheduleSignature.map { $0 != scheduledSignature(for: targetMed) } ?? true
+        let scheduleChanged = previousScheduleSignature.map { $0 != scheduledSignature(for: targetMed) } ?? true
+
+        if kind == .scheduled, targetMed.isActive, targetMed.repeatUnit != .hour {
             if scheduleChanged {
                 rebuildScheduledLogsForCurrentConfiguration(for: targetMed)
             } else {
@@ -922,11 +1034,28 @@ struct EditMedicationView: View {
             }
         }
 
+        if kind == .scheduled {
+            if targetMed.isActive {
+                syncScheduledIntakes(
+                    for: targetMed,
+                    scheduleChanged: scheduleChanged,
+                    anchorDate: chosenStartDate
+                )
+                pruneScheduledIntakesAfterEndDatePreservingTaken(for: targetMed)
+            } else {
+                removeFutureScheduledIntakes(for: targetMed.id, referenceDate: Date())
+                removeFutureLogs(for: targetMed.id, referenceDate: Date())
+            }
+        } else {
+            removeAllIntakes(for: targetMed.id)
+        }
+
         try? modelContext.save()
         NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
 
         if kind == .scheduled,
            targetMed.isActive,
+           targetMed.repeatUnit != .hour,
            let configuredStartDate = targetMed.startDateRaw {
             let cal = Calendar.current
             let start = cal.startOfDay(for: configuredStartDate)
@@ -987,7 +1116,7 @@ struct EditMedicationView: View {
         // Al cambiar pauta/fechas, rehacemos solo hasta hoy para evitar duplicados en histórico.
         for log in logs where log.medicationID == medication.id {
             let dayKey = cal.startOfDay(for: log.dateKey)
-            if dayKey <= todayKey {
+            if dayKey <= todayKey && !log.isTaken {
                 modelContext.delete(log)
             }
         }
@@ -1003,9 +1132,10 @@ struct EditMedicationView: View {
     private struct ScheduledSignature: Equatable {
         let kind: MedicationKind
         let isActive: Bool
+        let threeTimesDaily: Bool
         let repeatUnit: RepeatUnit
         let interval: Int
-        let startKey: Date?
+        let startAnchor: Date?
         let endKey: Date?
     }
 
@@ -1014,15 +1144,21 @@ struct EditMedicationView: View {
         return ScheduledSignature(
             kind: medication.kind,
             isActive: medication.isActive,
+            threeTimesDaily: medication.threeTimesDaily,
             repeatUnit: medication.repeatUnit,
             interval: medication.interval,
-            startKey: medication.startDateRaw.map { cal.startOfDay(for: $0) },
+            startAnchor: medication.startDateRaw.map {
+                medication.repeatUnit == .hour
+                    ? normalizeHourlyMoment($0, calendar: cal)
+                    : cal.startOfDay(for: $0)
+            },
             endKey: medication.endDate.map { cal.startOfDay(for: $0) }
         )
     }
 
     private func shouldBlockScheduledDuplicateOnCreate() -> Bool {
         guard medication == nil else { return false }
+        guard isActive else { return false }
         guard effectiveKind == .scheduled else { return false }
 
         let cleanNameKey = normalizedMedicationName(name)
@@ -1107,6 +1243,7 @@ struct EditMedicationView: View {
         guard let med = medication else { return }
         let medID = med.id
 
+        removeAllIntakes(for: medID)
         for log in allLogs where log.medicationID == medID {
             modelContext.delete(log)
         }
@@ -1149,6 +1286,22 @@ struct EditMedicationView: View {
             }
         }
         log.takenAt = finalTakenAt
+        try? modelContext.save()
+        historyLogForActions = nil
+    }
+
+    private func clearHistoryTime(for log: IntakeLog) {
+        let cal = Calendar.current
+        let editedDayKey = cal.startOfDay(for: historyEditedTime)
+
+        log.isTaken = true
+        if isOccasionalForm {
+            log.dateKey = editedDayKey
+            if let med = allMeds.first(where: { $0.id == log.medicationID }) {
+                med.startDate = editedDayKey
+            }
+        }
+        log.takenAt = nil
         try? modelContext.save()
         historyLogForActions = nil
     }
@@ -1236,6 +1389,18 @@ struct EditMedicationView: View {
             .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
     }
 
+    private func shouldShowDeactivateReminder() -> Bool {
+        guard let med = medication else { return false }
+        guard med.kind == .scheduled else { return false }
+        let cal = Calendar.current
+        let todayKey = cal.startOfDay(for: Date())
+        return allIntakes.contains { intake in
+            intake.medicationID == med.id &&
+            intake.source == .scheduled &&
+            cal.startOfDay(for: intake.scheduledAt) > todayKey
+        }
+    }
+
     private func ensureScheduledHistoryCoverageIfNeeded(for medication: Medication) {
         guard medication.kind == .scheduled else { return }
         guard medication.isActive else { return }
@@ -1250,6 +1415,9 @@ struct EditMedicationView: View {
             lookbackDays = maxHistoryItems * max(1, medication.interval) + 7
         case .month:
             lookbackDays = maxHistoryItems * max(1, medication.interval) * 31 + 31
+        case .hour:
+            // En pautas por horas no hay una sola "toma por día"; evitamos reconstrucción legacy.
+            return
         }
 
         let earliestNeeded = cal.date(byAdding: .day, value: -lookbackDays, to: today) ?? today
@@ -1257,6 +1425,116 @@ struct EditMedicationView: View {
         guard start <= today else { return }
 
         try? LogService.ensureLogs(from: start, to: today, modelContext: modelContext)
+    }
+
+    private func syncScheduledIntakes(for medication: Medication, scheduleChanged: Bool, anchorDate: Date) {
+        guard medication.kind == .scheduled else { return }
+        guard medication.isActive else { return }
+
+        let anchor = medication.repeatUnit == .hour
+            ? normalizeHourlyMoment(anchorDate)
+            : Calendar.current.startOfDay(for: anchorDate)
+        if scheduleChanged {
+            try? IntakeSchedulingService.regenerateFutureIntakes(
+                for: medication,
+                from: anchor,
+                modelContext: modelContext
+            )
+        } else {
+            try? IntakeSchedulingService.generateInitialIntakes(
+                for: medication,
+                modelContext: modelContext,
+                referenceDate: anchor
+            )
+        }
+    }
+
+    private func removeAllIntakes(for medicationID: UUID) {
+        let descriptor = FetchDescriptor<Intake>(
+            predicate: #Predicate { $0.medicationID == medicationID }
+        )
+        let intakes = (try? modelContext.fetch(descriptor)) ?? []
+        for intake in intakes {
+            modelContext.delete(intake)
+        }
+    }
+
+    private func removeFutureScheduledIntakes(for medicationID: UUID, referenceDate: Date) {
+        let cal = Calendar.current
+        let todayKey = cal.startOfDay(for: referenceDate)
+        let descriptor = FetchDescriptor<Intake>(
+            predicate: #Predicate { $0.medicationID == medicationID }
+        )
+        let intakes = (try? modelContext.fetch(descriptor)) ?? []
+        for intake in intakes where intake.source == .scheduled {
+            if cal.startOfDay(for: intake.scheduledAt) > todayKey {
+                modelContext.delete(intake)
+            }
+        }
+    }
+
+    private func removeFutureLogs(for medicationID: UUID, referenceDate: Date) {
+        let cal = Calendar.current
+        let todayKey = cal.startOfDay(for: referenceDate)
+        for log in allLogs where log.medicationID == medicationID {
+            if cal.startOfDay(for: log.dateKey) > todayKey {
+                modelContext.delete(log)
+            }
+        }
+    }
+
+    private func pruneScheduledIntakesAfterEndDatePreservingTaken(for medication: Medication) {
+        guard medication.kind == .scheduled else { return }
+        guard let endDate = medication.endDate else { return }
+
+        let cal = Calendar.current
+        let endKey = cal.startOfDay(for: endDate)
+        let medicationID = medication.id
+
+        let intakeDescriptor = FetchDescriptor<Intake>(
+            predicate: #Predicate { $0.medicationID == medicationID }
+        )
+        let medicationIntakes = (try? modelContext.fetch(intakeDescriptor)) ?? []
+
+        let logDescriptor = FetchDescriptor<IntakeLog>(
+            predicate: #Predicate { $0.medicationID == medicationID }
+        )
+        let medicationLogs = (try? modelContext.fetch(logDescriptor)) ?? []
+
+        // Toma "tomada" = existe log tomado asociado al intakeID.
+        let takenIntakeIDs = Set(
+            medicationLogs.compactMap { log -> UUID? in
+                guard log.isTaken, let intakeID = log.intakeID else { return nil }
+                return intakeID
+            }
+        )
+
+        // Fallback para datos legacy: logs tomados sin intakeID (1 toma/día).
+        let preserveTakenLegacyDays: Set<Date> = {
+            guard medication.repeatUnit != .hour, !medication.threeTimesDaily else { return [] }
+            return Set(
+                medicationLogs.compactMap { log -> Date? in
+                    guard log.isTaken, log.intakeID == nil else { return nil }
+                    return cal.startOfDay(for: log.dateKey)
+                }
+            )
+        }()
+
+        for intake in medicationIntakes where intake.source == .scheduled {
+            let intakeDay = cal.startOfDay(for: intake.scheduledAt)
+            guard intakeDay > endKey else { continue }
+            if takenIntakeIDs.contains(intake.id) { continue }
+            if preserveTakenLegacyDays.contains(intakeDay) { continue }
+            modelContext.delete(intake)
+        }
+
+        // Limpia logs no tomados posteriores al fin; conserva tomados para histórico.
+        for log in medicationLogs {
+            let logDay = cal.startOfDay(for: log.dateKey)
+            guard logDay > endKey else { continue }
+            if log.isTaken { continue }
+            modelContext.delete(log)
+        }
     }
 
     private func syncOccasionalReminder(for med: Medication) {
@@ -1365,6 +1643,22 @@ struct EditMedicationView: View {
                 hasEndDate = !isChronic
             }
         )
+    }
+
+    private func normalizedStartDate(from date: Date, kind: MedicationKind, repeatUnit: RepeatUnit) -> Date {
+        let cal = Calendar.current
+        if kind == .occasional {
+            return cal.startOfDay(for: date)
+        }
+        if repeatUnit == .hour {
+            return normalizeHourlyMoment(date, calendar: cal)
+        }
+        return cal.startOfDay(for: date)
+    }
+
+    private func normalizeHourlyMoment(_ date: Date, calendar: Calendar = .current) -> Date {
+        let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        return calendar.date(from: components) ?? date
     }
 
     private var currentDefaultArtworkKind: MedicationDefaultArtworkKind {
@@ -1534,6 +1828,7 @@ private struct HistoryEditOverlay: View {
     let allowsDateEdition: Bool
     @Binding var selectedTime: Date
     let onSaveTime: () -> Void
+    let onClearTime: () -> Void
     let onDeleteIntake: () -> Void
     let onClose: () -> Void
 
@@ -1568,6 +1863,13 @@ private struct HistoryEditOverlay: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(AppTheme.brandBlue)
+
+                Button(action: onClearTime) {
+                    Label(L10n.tr("button_clear"), systemImage: "xmark.circle")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(AppTheme.brandYellow)
 
                 Button(role: .destructive, action: onDeleteIntake) {
                     Label(L10n.tr("history_action_delete"), systemImage: "trash")

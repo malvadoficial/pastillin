@@ -7,19 +7,15 @@ struct SplashGateView: View {
 
     @AppStorage("legalDisclaimerAccepted") private var legalDisclaimerAccepted = false
     @AppStorage("hasSeenOnboardingTutorial") private var hasSeenOnboardingTutorial = false
-    @AppStorage("showOnboardingTutorialNow") private var showOnboardingTutorialNow = false
-    @AppStorage("tutorialDemoDataCreated") private var tutorialDemoDataCreated = false
-    @AppStorage("tutorialDemoMedicationIDs") private var tutorialDemoMedicationIDsRaw = ""
-    @AppStorage("tutorialDemoCleanupNow") private var tutorialDemoCleanupNow = false
     @AppStorage("deleteAllDataNow") private var deleteAllDataNow = false
     @AppStorage("deleteAllDataCompleted") private var deleteAllDataCompleted = false
     @State private var showSplash = true
     @State private var showLegalDisclaimer = false
-    @State private var isCleaningTutorialData = false
+    @State private var isCleaningData = false
 
     var body: some View {
         ZStack {
-            if !isCleaningTutorialData {
+            if !isCleaningData {
                 RootView()
             } else {
                 Color.black.ignoresSafeArea()
@@ -34,7 +30,7 @@ struct SplashGateView: View {
         .task {
             guard showSplash else { return }
             runDeleteAllDataIfNeeded()
-            runTutorialCleanupIfNeeded()
+            try? IntakeSchedulingService.bootstrapScheduledIntakes(modelContext: modelContext)
             try? await Task.sleep(nanoseconds: splashDuration)
             withAnimation(.easeOut(duration: 0.25)) {
                 showSplash = false
@@ -42,10 +38,6 @@ struct SplashGateView: View {
             if !legalDisclaimerAccepted {
                 showLegalDisclaimer = true
             }
-        }
-        .onChange(of: tutorialDemoCleanupNow) { _, newValue in
-            guard newValue else { return }
-            runTutorialCleanupIfNeeded()
         }
         .onChange(of: deleteAllDataNow) { _, newValue in
             guard newValue else { return }
@@ -55,47 +47,22 @@ struct SplashGateView: View {
             LegalDisclaimerView(isMandatory: true) {
                 legalDisclaimerAccepted = true
                 showLegalDisclaimer = false
-                if !hasSeenOnboardingTutorial {
-                    showOnboardingTutorialNow = true
-                }
             }
-        }
-    }
-
-    private func runTutorialCleanupIfNeeded() {
-        guard tutorialDemoCleanupNow else { return }
-        isCleaningTutorialData = true
-
-        // Deja que SwiftUI desmonte RootView antes de tocar el contexto.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-        let ids = tutorialDemoMedicationIDsRaw
-            .split(separator: ",")
-            .compactMap { UUID(uuidString: String($0)) }
-
-        try? TutorialDemoDataService.cleanup(medicationIDs: ids, modelContext: modelContext)
-        tutorialDemoMedicationIDsRaw = ""
-        tutorialDemoDataCreated = false
-        tutorialDemoCleanupNow = false
-        isCleaningTutorialData = false
         }
     }
 
     private func runDeleteAllDataIfNeeded() {
         guard deleteAllDataNow else { return }
-        isCleaningTutorialData = true
+        isCleaningData = true
 
         // Deja que SwiftUI desmonte RootView antes de tocar el contexto.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             try? BackupService.clearAllData(modelContext: modelContext)
 
-            // Limpia cualquier rastro de demo/tutorial.
-            tutorialDemoMedicationIDsRaw = ""
-            tutorialDemoDataCreated = false
-            tutorialDemoCleanupNow = false
-
+            hasSeenOnboardingTutorial = false
             deleteAllDataNow = false
             deleteAllDataCompleted = true
-            isCleaningTutorialData = false
+            isCleaningData = false
         }
     }
 }

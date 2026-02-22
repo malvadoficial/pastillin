@@ -6,12 +6,14 @@ struct TodayRow: Identifiable {
     let id: UUID
     let medication: Medication
     let log: IntakeLog
+    let intake: Intake?
 }
 
 struct TodayView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var medications: [Medication]
     @Query private var logs: [IntakeLog]
+    @Query private var intakes: [Intake]
     @AppStorage("selectedTab") private var selectedTab: AppTab = .today
     @AppStorage("lastTabBeforeNoTaken") private var lastTabBeforeNoTakenRaw: String = AppTab.today.rawValue
     @AppStorage("shoppingCartDisclaimerShown") private var shoppingCartDisclaimerShown: Bool = false
@@ -19,22 +21,12 @@ struct TodayView: View {
     @State private var rows: [TodayRow] = []
     @State private var showShoppingDisclaimerAlert = false
     @State private var selected: SelectedWrapper? = nil
-    @State private var showingAddTypeDialog = false
-    @State private var addMode: TodayAddMode? = nil
-    @State private var showHelpFromGuide = false
-    @State private var didDismissGettingStartedOverlay = false
-    @State private var plusButtonFrame: CGRect = .zero
-    @State private var helpButtonFrame: CGRect = .zero
+    @State private var addIntakeTarget: AddTodayIntakeTarget? = nil
+    @State private var scheduleEditorTarget: ScheduleEditorTarget? = nil
 
     // Evita que el tap del botón dispare también el tap de la celda
     @State private var suppressCellTap = false
-    
-    private var isFirstRunOrCleanState: Bool {
-        medications.isEmpty && logs.isEmpty
-    }
-    private var shouldShowGettingStartedOverlay: Bool {
-        isFirstRunOrCleanState && rows.isEmpty && !showingAddTypeDialog && !didDismissGettingStartedOverlay
-    }
+
     private var shoppingCartCount: Int {
         medications.filter { $0.inShoppingCart }.count
     }
@@ -47,131 +39,86 @@ struct TodayView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    Text(Fmt.dayLong(Date()))
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(AppTheme.brandBlue)
-                        .frame(maxWidth: .infinity, alignment: .center)
+            VStack(spacing: 8) {
+                todayHeaderBlock
 
-                    if pendingCount > 0 {
-                        Button {
-                            lastTabBeforeNoTakenRaw = AppTab.today.rawValue
-                            selectedTab = .noTaken
-                        } label: {
-                            Text(String(format: L10n.tr("today_pending_notice_format"), pendingCount))
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(AppTheme.brandRed)
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                .padding(.vertical, 2)
-                        }
-                        .buttonStyle(.plain)
-                    }
+                List {
+                    if rows.isEmpty {
+                        EmptyMedicinesStateView()
+                    } else {
+                        ForEach(rows) { row in
+                            HStack(spacing: 12) {
+                                medicationThumbnail(for: row.medication)
 
-                    if shoppingCartCount > 0 {
-                        Button {
-                            selectedTab = .cart
-                        } label: {
-                            Text(L10n.tr("today_shopping_notice"))
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(AppTheme.brandYellow)
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                .padding(.vertical, 2)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
+                                // Nombre + hora
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(row.medication.name)
+                                        .font(.subheadline.weight(.semibold))
 
-                if rows.isEmpty {
-                    EmptyMedicinesStateView()
-                    if isFirstRunOrCleanState {
-                        HStack {
-                            Spacer()
-                            NavigationLink {
-                                HelpView()
-                            } label: {
-                                Label(L10n.tr("today_open_help"), systemImage: "questionmark.circle")
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .tint(AppTheme.brandBlue)
-                            .background(
-                                GeometryReader { proxy in
-                                    Color.clear.preference(
-                                        key: HelpButtonFramePreferenceKey.self,
-                                        value: proxy.frame(in: .named("today-root"))
-                                    )
-                                }
-                            )
-                            Spacer()
-                        }
-                        .padding(.vertical, 8)
-                    }
-                } else {
-                    ForEach(rows) { row in
-                        HStack(spacing: 12) {
-                            medicationThumbnail(for: row.medication)
+                                    if row.medication.kind == .occasional {
+                                        Text(L10n.tr("medication_occasional_badge_short"))
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(AppTheme.brandBlue)
+                                    }
 
-                            // Nombre + hora
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(row.medication.name)
-                                    .font(.subheadline.weight(.semibold))
-
-                                if row.medication.kind == .occasional {
-                                    Text(L10n.tr("medication_occasional_badge_short"))
-                                        .font(.caption2.weight(.semibold))
-                                        .foregroundStyle(AppTheme.brandBlue)
-                                }
-
-                                if row.log.isTaken {
-                                    Text(row.log.takenAt.map { Fmt.timeShort($0) } ?? L10n.tr("time_unspecified"))
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                } else {
-                                    Text("—")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                }
-
-                                if row.medication.inShoppingCart {
-                                    if let runOutDate = row.medication.estimatedRunOutDate() {
-                                        Text(String(format: L10n.tr("today_cart_runs_out_format"), Fmt.dayMedium(runOutDate)))
-                                            .font(.caption.weight(.semibold))
-                                            .foregroundStyle(AppTheme.brandYellow)
-                                    } else {
-                                        Text(L10n.tr("today_cart_pending_purchase"))
-                                            .font(.caption.weight(.semibold))
+                                    if let label = slotLabel(for: row) {
+                                        Text(label)
+                                            .font(.caption2.weight(.semibold))
                                             .foregroundStyle(AppTheme.brandYellow)
                                     }
+
+                                    if row.log.isTaken {
+                                        Text(row.log.takenAt.map { Fmt.timeShort($0) } ?? L10n.tr("time_unspecified"))
+                                            .font(.subheadline)
+                                            .foregroundStyle(.secondary)
+                                    } else {
+                                        Text("—")
+                                            .font(.subheadline)
+                                            .foregroundStyle(.secondary)
+                                    }
+
+                                    if row.medication.inShoppingCart {
+                                        if let runOutDate = row.medication.estimatedRunOutDate() {
+                                            Text(String(format: L10n.tr("today_cart_runs_out_format"), Fmt.dayMedium(runOutDate)))
+                                                .font(.caption.weight(.semibold))
+                                                .foregroundStyle(AppTheme.brandYellow)
+                                        } else {
+                                            Text(L10n.tr("today_cart_pending_purchase"))
+                                                .font(.caption.weight(.semibold))
+                                                .foregroundStyle(AppTheme.brandYellow)
+                                        }
+                                    }
                                 }
+
+                                Spacer()
+
+                                // Botón único (toggle)
+                                Button {
+                                    toggleTaken(for: row.log)
+                                } label: {
+                                    Text(row.log.isTaken ? L10n.tr("taken_fem") : L10n.tr("not_taken_fem"))
+                                        .font(.footnote.weight(.semibold))
+                                        .frame(width: 88, height: 28)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(row.log.isTaken ? AppTheme.brandBlue : AppTheme.brandRed)
+
                             }
-
-                            Spacer()
-
-                            // Botón único (toggle)
-                            Button {
-                                toggleTaken(for: row.log)
-                            } label: {
-                                Text(row.log.isTaken ? L10n.tr("taken_fem") : L10n.tr("not_taken_fem"))
-                                    .font(.footnote.weight(.semibold))
-                                    .frame(width: 88, height: 28)
+                            .padding(.vertical, 6)
+                            // Celda entera tappable para abrir detalle
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                guard !suppressCellTap else { return }
+                                let key = Calendar.current.startOfDay(for: Date())
+                                selected = SelectedWrapper(med: row.medication, log: row.log, dayKey: key)
                             }
-                            .buttonStyle(.borderedProminent)
-                            .tint(row.log.isTaken ? AppTheme.brandBlue : AppTheme.brandRed)
-
-                        }
-                        .padding(.vertical, 6)
-                        // Celda entera tappable para abrir detalle
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            guard !suppressCellTap else { return }
-                            let key = Calendar.current.startOfDay(for: Date())
-                            selected = SelectedWrapper(med: row.medication, log: row.log, dayKey: key)
                         }
                     }
                 }
+                .textSelection(.enabled)
+                .listStyle(.plain)
+                .safeAreaPadding(.bottom, 84)
             }
-            .textSelection(.enabled)
-            .safeAreaPadding(.bottom, 84)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
@@ -182,29 +129,33 @@ struct TodayView: View {
                     )
                 }
                 ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        lastTabBeforeNoTakenRaw = AppTab.today.rawValue
-                        selectedTab = .noTaken
-                    } label: {
-                        PendingIntakesIconView(count: pendingCount)
+                    if pendingCount > 0 {
+                        Button {
+                            lastTabBeforeNoTakenRaw = AppTab.today.rawValue
+                            selectedTab = .noTaken
+                        } label: {
+                            PendingIntakesIconView(count: pendingCount)
+                        }
+                        .foregroundStyle(AppTheme.brandBlue)
+                        .accessibilityLabel(L10n.tr("tab_not_taken"))
                     }
-                    .foregroundStyle(AppTheme.brandBlue)
-                    .accessibilityLabel(L10n.tr("tab_not_taken"))
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button {
-                        if shoppingCartDisclaimerShown {
-                            selectedTab = .cart
-                        } else {
-                            showShoppingDisclaimerAlert = true
+                    if shoppingCartCount > 0 {
+                        Button {
+                            if shoppingCartDisclaimerShown {
+                                selectedTab = .cart
+                            } else {
+                                showShoppingDisclaimerAlert = true
+                            }
+                        } label: {
+                            ShoppingCartIconView(count: shoppingCartCount)
                         }
-                    } label: {
-                        ShoppingCartIconView(count: shoppingCartCount)
+                        .foregroundStyle(AppTheme.brandBlue)
                     }
-                    .foregroundStyle(AppTheme.brandBlue)
 
                     Button {
-                        showingAddTypeDialog = true
+                        addIntakeTarget = AddTodayIntakeTarget(day: Calendar.current.startOfDay(for: Date()))
                     } label: {
                         ZStack {
                             Circle()
@@ -215,64 +166,24 @@ struct TodayView: View {
                                 .foregroundStyle(.white)
                         }
                     }
-                    .background(
-                        GeometryReader { proxy in
-                            Color.clear.preference(
-                                key: PlusButtonFramePreferenceKey.self,
-                                value: proxy.frame(in: .named("today-root"))
-                            )
-                        }
-                    )
                 }
-            }
-            .overlay {
-                if showingAddTypeDialog {
-                    TodayAddMedicationTypeOverlay(
-                        onChooseScheduled: {
-                            showingAddTypeDialog = false
-                            addMode = .scheduled
-                        },
-                        onChooseOccasional: {
-                            showingAddTypeDialog = false
-                            addMode = .occasional
-                        },
-                        onCancel: { showingAddTypeDialog = false }
-                    )
-                    .transition(.opacity)
-                    .zIndex(2)
-                }
-
-                if shouldShowGettingStartedOverlay {
-                    TodayGettingStartedOverlay(
-                        plusFrame: plusButtonFrame,
-                        helpFrame: helpButtonFrame,
-                        onTapPlus: { showingAddTypeDialog = true },
-                        onTapHelp: {
-                            didDismissGettingStartedOverlay = true
-                            showHelpFromGuide = true
-                        }
-                    )
-                    .transition(.opacity)
-                    .zIndex(3)
-                }
-            }
-            .coordinateSpace(name: "today-root")
-            .onPreferenceChange(PlusButtonFramePreferenceKey.self) { frame in
-                plusButtonFrame = frame
-            }
-            .onPreferenceChange(HelpButtonFramePreferenceKey.self) { frame in
-                helpButtonFrame = frame
             }
             .onAppear {
-                try? LogService.ensureLogs(for: Date(), modelContext: modelContext)
+                try? IntakeSchedulingService.bootstrapScheduledIntakes(modelContext: modelContext)
+                ensureLogsForIntakesToday()
                 normalizeSortOrderIfNeeded()
                 reload()
             }
             .onChange(of: medications.count) { _, _ in
-                try? LogService.ensureLogs(for: Date(), modelContext: modelContext)
+                try? IntakeSchedulingService.bootstrapScheduledIntakes(modelContext: modelContext)
+                ensureLogsForIntakesToday()
                 reload()
             }
             .onChange(of: logs.count) { _, _ in
+                reload()
+            }
+            .onChange(of: intakes.count) { _, _ in
+                ensureLogsForIntakesToday()
                 reload()
             }
             .sheet(item: $selected) { wrap in
@@ -282,39 +193,30 @@ struct TodayView: View {
                     log: wrap.log
                 )
             }
-            .sheet(item: $addMode) { mode in
-                switch mode {
-                case .scheduled:
-                    EditMedicationView(
-                        medication: nil,
-                        creationKind: .scheduled,
-                        markTakenNowOnCreate: false,
-                        initialStartDate: Date()
-                    )
-                case .occasional:
-                    EditMedicationView(
-                        medication: nil,
-                        creationKind: .occasional,
-                        markTakenNowOnCreate: true,
-                        initialStartDate: Date()
-                    )
+            .fullScreenCover(item: $addIntakeTarget) { target in
+                TodayAddIntakePickerView(
+                    day: target.day,
+                    medications: medications.filter { $0.isActive },
+                    lastTakenByMedication: latestTakenByMedication()
+                ) { medication, option in
+                    if option == .startSchedule, medication.kind != .occasional {
+                        scheduleEditorTarget = ScheduleEditorTarget(
+                            medication: medication,
+                            day: Calendar.current.startOfDay(for: target.day)
+                        )
+                        addIntakeTarget = nil
+                        return
+                    }
+                    createTodayIntake(for: medication, option: option, day: target.day)
+                    addIntakeTarget = nil
                 }
             }
-            .sheet(isPresented: $showHelpFromGuide) {
-                NavigationStack {
-                    HelpView()
-                        .safeAreaInset(edge: .bottom) {
-                            Button(L10n.tr("button_close")) {
-                                showHelpFromGuide = false
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .padding(.horizontal, 16)
-                            .padding(.top, 8)
-                            .padding(.bottom, 10)
-                            .frame(maxWidth: .infinity)
-                            .background(.ultraThinMaterial)
-                        }
-                }
+            .fullScreenCover(item: $scheduleEditorTarget) { target in
+                EditMedicationView(
+                    medication: target.medication,
+                    overrideStartDateOnEdit: target.day,
+                    openedFromCabinet: false
+                )
             }
             .alert(L10n.tr("cart_disclaimer_title"), isPresented: $showShoppingDisclaimerAlert) {
                 Button(L10n.tr("cart_disclaimer_understood")) {
@@ -325,6 +227,51 @@ struct TodayView: View {
                 Text(L10n.tr("cart_disclaimer_message"))
             }
         }
+    }
+
+    private var todayHeaderBlock: some View {
+        VStack(spacing: 2) {
+            Text(Fmt.dayLong(Date()))
+                .font(.headline.weight(.bold))
+                .foregroundStyle(AppTheme.brandBlue)
+                .frame(maxWidth: .infinity, alignment: .center)
+
+            if pendingCount > 0 {
+                Button {
+                    lastTabBeforeNoTakenRaw = AppTab.today.rawValue
+                    selectedTab = .noTaken
+                } label: {
+                    Text(String(format: L10n.tr("today_pending_notice_format"), pendingCount))
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(AppTheme.brandRed)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
+                .buttonStyle(.plain)
+            }
+
+            if shoppingCartCount > 0 {
+                Button {
+                    selectedTab = .cart
+                } label: {
+                    Text(L10n.tr("today_shopping_notice"))
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(AppTheme.brandYellow)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 14)
+        .background {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(.thinMaterial)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(AppTheme.brandBlue.opacity(0.28), lineWidth: 1)
+                }
+        }
+        .padding(.horizontal, 10)
     }
 
     // MARK: - Actions
@@ -370,26 +317,126 @@ struct TodayView: View {
     private func reload() {
         let cal = Calendar.current
         let key = cal.startOfDay(for: Date())
-
-        let activeMeds = medications.filter { $0.isActive }
-        let dueMeds = activeMeds.filter { $0.isDue(on: key, calendar: cal) }
-
+        let todayIntakes = intakes.filter { cal.isDate($0.scheduledAt, inSameDayAs: key) }
         let todayLogs = logs.filter { cal.isDate($0.dateKey, inSameDayAs: key) }
+        let medsByID = Dictionary(uniqueKeysWithValues: medications.map { ($0.id, $0) })
 
         var temp: [TodayRow] = []
-        for med in dueMeds {
-            if let log = todayLogs.first(where: { $0.medicationID == med.id }) {
-                temp.append(TodayRow(id: med.id, medication: med, log: log))
+        let sortedIntakes = todayIntakes.sorted { lhs, rhs in
+            let lm = medsByID[lhs.medicationID]
+            let rm = medsByID[rhs.medicationID]
+            let lo = lm?.sortOrder ?? 0
+            let ro = rm?.sortOrder ?? 0
+            if lo != ro { return lo < ro }
+            if lm?.name != rm?.name {
+                return (lm?.name ?? "").localizedCaseInsensitiveCompare(rm?.name ?? "") == .orderedAscending
             }
+            return lhs.scheduledAt < rhs.scheduledAt
         }
-        rows = temp.sorted {
-            let o0 = $0.medication.sortOrder ?? 0
-            let o1 = $1.medication.sortOrder ?? 0
-            if o0 != o1 {
-                return o0 < o1
+
+        for intake in sortedIntakes {
+            guard let med = medsByID[intake.medicationID] else { continue }
+            guard let log = todayLogs.first(where: { $0.intakeID == intake.id })
+                ?? todayLogs.first(where: { $0.medicationID == med.id }) else { continue }
+            temp.append(TodayRow(id: intake.id, medication: med, log: log, intake: intake))
+        }
+        rows = temp
+    }
+
+    private func slotLabel(for row: TodayRow) -> String? {
+        guard row.medication.threeTimesDaily, let intake = row.intake else { return nil }
+        let hour = Calendar.current.component(.hour, from: intake.scheduledAt)
+        if hour < 12 { return L10n.tr("intake_slot_morning") }
+        if hour < 20 { return L10n.tr("intake_slot_afternoon") }
+        return L10n.tr("intake_slot_night")
+    }
+
+    private func ensureLogsForIntakesToday() {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let todayIntakes = intakes.filter { cal.isDate($0.scheduledAt, inSameDayAs: today) }
+        guard !todayIntakes.isEmpty else { return }
+
+        let existingLogKeys = Set(logs.compactMap { log -> String? in
+            guard let intakeID = log.intakeID else { return nil }
+            return "\(intakeID.uuidString)-\(cal.startOfDay(for: log.dateKey).timeIntervalSinceReferenceDate)"
+        })
+
+        var inserted = false
+        for intake in todayIntakes {
+            let key = "\(intake.id.uuidString)-\(today.timeIntervalSinceReferenceDate)"
+            if existingLogKeys.contains(key) { continue }
+            modelContext.insert(
+                IntakeLog(
+                    medicationID: intake.medicationID,
+                    intakeID: intake.id,
+                    dateKey: today,
+                    isTaken: false,
+                    takenAt: nil
+                )
+            )
+            inserted = true
+        }
+
+        if inserted {
+            try? modelContext.save()
+            NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
+        }
+    }
+
+    private func createTodayIntake(for medication: Medication, option: TodayIntakeAddOption, day: Date) {
+        let cal = Calendar.current
+        let dayKey = cal.startOfDay(for: day)
+
+        if option == .startSchedule, medication.kind == .scheduled {
+            if medication.repeatUnit == .hour {
+                let hm = cal.dateComponents([.hour, .minute], from: medication.startDateRaw ?? Date())
+                var comps = cal.dateComponents([.year, .month, .day], from: dayKey)
+                comps.hour = hm.hour
+                comps.minute = hm.minute
+                medication.startDate = cal.date(from: comps) ?? dayKey
+            } else {
+                medication.startDate = dayKey
             }
-            return $0.medication.name.localizedCaseInsensitiveCompare($1.medication.name) == .orderedAscending
+            medication.setSkipped(false, on: dayKey)
+            try? IntakeSchedulingService.regenerateFutureIntakes(
+                for: medication,
+                from: medication.repeatUnit == .hour ? medication.startDate : dayKey,
+                modelContext: modelContext
+            )
+            ensureLogsForIntakesToday()
+            reload()
+            return
         }
+
+        let intake = Intake(
+            medicationID: medication.id,
+            scheduledAt: cal.date(bySettingHour: 12, minute: 0, second: 0, of: dayKey) ?? dayKey,
+            source: option == .startSchedule ? .scheduled : .manual
+        )
+        modelContext.insert(intake)
+        modelContext.insert(
+            IntakeLog(
+                medicationID: medication.id,
+                intakeID: intake.id,
+                dateKey: dayKey,
+                isTaken: option == .occasionalTaken,
+                takenAt: option == .occasionalTaken ? (cal.isDateInToday(dayKey) ? Date() : nil) : nil
+            )
+        )
+        try? modelContext.save()
+        NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
+        reload()
+    }
+
+    private func latestTakenByMedication() -> [UUID: Date] {
+        var result: [UUID: Date] = [:]
+        for log in logs where log.isTaken {
+            guard let takenAt = log.takenAt else { continue }
+            if let existing = result[log.medicationID], existing >= takenAt { continue }
+            result[log.medicationID] = takenAt
+        }
+        return result
     }
 
     @ViewBuilder
@@ -419,189 +466,215 @@ struct TodayView: View {
         let dayKey: Date
     }
 
-    enum TodayAddMode: Int, Identifiable {
-        case scheduled
-        case occasional
+    struct AddTodayIntakeTarget: Identifiable {
+        let id = UUID()
+        let day: Date
+    }
 
-        var id: Int { rawValue }
+    struct ScheduleEditorTarget: Identifiable {
+        let id = UUID()
+        let medication: Medication
+        let day: Date
     }
 }
 
-private struct PlusButtonFramePreferenceKey: PreferenceKey {
-    static var defaultValue: CGRect = .zero
+private struct TodayAddIntakePickerView: View {
+    @Environment(\.dismiss) private var dismiss
+    let day: Date
+    let medications: [Medication]
+    let lastTakenByMedication: [UUID: Date]
+    let onSelect: (Medication, TodayIntakeAddOption) -> Void
+    @State private var searchText = ""
+    @State private var selectedMedication: Medication? = nil
+    @State private var showTypeSelector = false
 
-    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
-        let next = nextValue()
-        if next != .zero {
-            value = next
-        }
-    }
-}
-
-private struct HelpButtonFramePreferenceKey: PreferenceKey {
-    static var defaultValue: CGRect = .zero
-
-    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
-        let next = nextValue()
-        if next != .zero {
-            value = next
-        }
-    }
-}
-
-private struct TodayGettingStartedOverlay: View {
-    let plusFrame: CGRect
-    let helpFrame: CGRect
-    let onTapPlus: () -> Void
-    let onTapHelp: () -> Void
-
-    var body: some View {
-        GeometryReader { proxy in
-            let safeWidth = max(finite(proxy.size.width, fallback: 320), 1)
-            let safeHeight = max(finite(proxy.size.height, fallback: 640), 1)
-            let safeSize = CGSize(width: safeWidth, height: safeHeight)
-            let safeTop = finite(proxy.safeAreaInsets.top, fallback: 0)
-            let plusTarget = sanitizedFrame(normalizedPlusFrame(in: safeSize, safeTop: safeTop), in: safeSize)
-            let helpTarget = sanitizedFrame(normalizedHelpFrame(in: safeSize), in: safeSize)
-            let plusHoleWidth = max(plusTarget.width + 12, 1)
-            let plusHoleHeight = max(plusTarget.height + 10, 1)
-            let helpHoleWidth = max(helpTarget.width + 34, 1)
-            let helpHoleHeight = max(helpTarget.height + 18, 1)
-            let plusHintWidth = max(min(220, max(safeWidth - 24, 1)), 1)
-            let helpHintWidth = max(min(300, max(safeWidth - 24, 1)), 1)
-            let plusHintX = clamp(plusTarget.midX + 70, lower: 110, upper: max(safeWidth - 110, 110))
-            let plusHintY = min(safeHeight - 40, plusTarget.maxY + 46)
-            let helpHintX = clamp(helpTarget.midX, lower: 1, upper: max(safeWidth - 1, 1))
-            let helpHintY = max(26, helpTarget.minY - 34)
-
-            ZStack {
-                Color.black.opacity(0.70)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .frame(width: plusHoleWidth, height: plusHoleHeight)
-                            .position(x: plusTarget.midX, y: plusTarget.midY)
-                            .blendMode(.destinationOut)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .frame(width: helpHoleWidth, height: helpHoleHeight)
-                            .position(x: helpTarget.midX, y: helpTarget.midY)
-                            .blendMode(.destinationOut)
-                    )
-                    .compositingGroup()
-                    .ignoresSafeArea()
-
-                Button(action: onTapPlus) {
-                    Color.clear
-                        .frame(width: max(plusTarget.width, 34), height: max(plusTarget.height, 34))
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .position(x: plusTarget.midX, y: plusTarget.midY)
-
-                Button(action: onTapHelp) {
-                    Color.clear
-                        .frame(
-                            width: max(max(helpTarget.width + 8, 140), 1),
-                            height: max(max(helpTarget.height + 8, 40), 1)
-                        )
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .position(x: helpTarget.midX, y: helpTarget.midY)
-
-                Text(L10n.tr("today_overlay_plus_hint"))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .multilineTextAlignment(.center)
-                    .frame(width: plusHintWidth)
-                    .position(x: plusHintX, y: plusHintY)
-
-                Text(L10n.tr("today_overlay_help_hint"))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .multilineTextAlignment(.center)
-                    .frame(width: helpHintWidth)
-                    .position(x: helpHintX, y: helpHintY)
+    private var uniqueMedications: [Medication] {
+        var seen = Set<String>()
+        var result: [Medication] = []
+        for medication in medications {
+            let dedupeKey: String
+            if medication.kind == .occasional {
+                dedupeKey = "occasional:\(medication.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())"
+            } else {
+                dedupeKey = "id:\(medication.id.uuidString)"
+            }
+            if seen.insert(dedupeKey).inserted {
+                result.append(medication)
             }
         }
-        .ignoresSafeArea()
+        return result
     }
 
-    private func normalizedPlusFrame(in size: CGSize, safeTop: CGFloat) -> CGRect {
-        if plusFrame == .zero {
-            return CGRect(x: size.width - 52, y: safeTop + 8, width: 32, height: 32)
+    private var filtered: [Medication] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else {
+            return uniqueMedications.sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
         }
-        return plusFrame
+        return uniqueMedications
+            .filter { $0.name.localizedCaseInsensitiveContains(query) }
+            .sorted { ($0.sortOrder ?? 0) < ($1.sortOrder ?? 0) }
     }
 
-    private func normalizedHelpFrame(in size: CGSize) -> CGRect {
-        if helpFrame == .zero {
-            return CGRect(x: (size.width - 180) / 2, y: size.height * 0.62, width: 180, height: 42)
+    private var occasional: [Medication] {
+        filtered.filter { $0.kind == .occasional }
+    }
+
+    private var scheduled: [Medication] {
+        filtered.filter { $0.kind == .scheduled }
+    }
+
+    private var unspecified: [Medication] {
+        filtered.filter { $0.kind == .unspecified }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if filtered.isEmpty {
+                    Text(L10n.tr("medications_search_no_results"))
+                        .foregroundStyle(.secondary)
+                } else {
+                    if !occasional.isEmpty {
+                        Section(L10n.tr("medications_section_occasional")) {
+                            ForEach(occasional) { medication in
+                                medicationRow(medication)
+                            }
+                        }
+                    }
+                    if !scheduled.isEmpty {
+                        Section(L10n.tr("medications_section_scheduled")) {
+                            ForEach(scheduled) { medication in
+                                medicationRow(medication)
+                            }
+                        }
+                    }
+                    if !unspecified.isEmpty {
+                        Section(L10n.tr("medications_section_unspecified")) {
+                            ForEach(unspecified) { medication in
+                                medicationRow(medication)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle(Fmt.dayLong(day))
+            .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $searchText, prompt: L10n.tr("medications_search_placeholder"))
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(L10n.tr("button_cancel")) { dismiss() }
+                }
+            }
+            .overlay {
+                if showTypeSelector, let medication = selectedMedication {
+                    ZStack(alignment: .bottom) {
+                        Color.black.opacity(0.62)
+                            .ignoresSafeArea()
+                            .onTapGesture { showTypeSelector = false }
+
+                        VStack(spacing: 12) {
+                            Text(L10n.tr("medication_add_type_title"))
+                                .font(.headline)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                            ForEach(TodayIntakeAddOption.options(for: medication.kind), id: \.self) { option in
+                                Button(option.title) {
+                                    showTypeSelector = false
+                                    onSelect(medication, option)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.vertical, 10)
+                                .buttonStyle(.plain)
+                            }
+
+                            Divider()
+
+                            Button(L10n.tr("button_cancel")) {
+                                showTypeSelector = false
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 6)
+                        }
+                        .padding(16)
+                        .background(.regularMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 8)
+                    }
+                }
+            }
         }
-        return helpFrame
     }
 
-    private func sanitizedFrame(_ frame: CGRect, in size: CGSize) -> CGRect {
-        let safeWidth = max(finite(frame.width, fallback: 32), 1)
-        let safeHeight = max(finite(frame.height, fallback: 32), 1)
-        let maxX = max(size.width - safeWidth, 0)
-        let maxY = max(size.height - safeHeight, 0)
-        let safeX = clamp(finite(frame.origin.x, fallback: 0), lower: 0, upper: maxX)
-        let safeY = clamp(finite(frame.origin.y, fallback: 0), lower: 0, upper: maxY)
-        return CGRect(x: safeX, y: safeY, width: safeWidth, height: safeHeight)
+    @ViewBuilder
+    private func medicationRow(_ medication: Medication) -> some View {
+        Button {
+            if medication.kind == .occasional {
+                onSelect(medication, .occasionalTaken)
+                return
+            }
+            selectedMedication = medication
+            showTypeSelector = true
+        } label: {
+            HStack(spacing: 10) {
+                medicationThumbnail(for: medication)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(medication.name)
+                        .foregroundStyle(.primary)
+                    if let lastTaken = lastTakenByMedication[medication.id] {
+                        Text("Última toma: \(Fmt.dayMedium(lastTaken)) \(Fmt.timeShort(lastTaken))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .buttonStyle(.plain)
     }
 
-    private func finite(_ value: CGFloat, fallback: CGFloat) -> CGFloat {
-        value.isFinite ? value : fallback
-    }
-
-    private func clamp(_ value: CGFloat, lower: CGFloat, upper: CGFloat) -> CGFloat {
-        min(max(value, lower), upper)
+    @ViewBuilder
+    private func medicationThumbnail(for medication: Medication) -> some View {
+        if let data = medication.photoData,
+           let image = UIImage(data: data) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 34, height: 34)
+                .clipped()
+                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        } else {
+            MedicationDefaultArtworkView(
+                kind: MedicationDefaultArtwork.kind(for: medication),
+                width: 34,
+                height: 34,
+                cornerRadius: 7
+            )
+        }
     }
 }
 
-private struct TodayAddMedicationTypeOverlay: View {
-    let onChooseScheduled: () -> Void
-    let onChooseOccasional: () -> Void
-    let onCancel: () -> Void
+private enum TodayIntakeAddOption: Hashable {
+    case occasionalTaken
+    case startSchedule
 
-    var body: some View {
-        ZStack(alignment: .bottom) {
-            Color.black.opacity(0.62)
-                .ignoresSafeArea()
-                .onTapGesture(perform: onCancel)
+    var title: String {
+        switch self {
+        case .occasionalTaken:
+            return "Toma ocasional"
+        case .startSchedule:
+            return "Comienzo de pauta"
+        }
+    }
 
-            VStack(spacing: 12) {
-                Text(L10n.tr("medication_add_type_title"))
-                    .font(.headline)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                Button(action: onChooseScheduled) {
-                    Label(L10n.tr("medication_add_scheduled"), systemImage: "calendar.badge.plus")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 10)
-                }
-                .buttonStyle(.plain)
-
-                Button(action: onChooseOccasional) {
-                    Label(L10n.tr("medication_add_occasional"), systemImage: "plus.circle")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.vertical, 10)
-                }
-                .buttonStyle(.plain)
-
-                Divider()
-
-                Button(L10n.tr("button_cancel"), action: onCancel)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
-            }
-            .padding(16)
-            .background(.regularMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .padding(.horizontal, 12)
-            .padding(.bottom, 8)
+    static func options(for kind: MedicationKind) -> [TodayIntakeAddOption] {
+        switch kind {
+        case .occasional:
+            return [.occasionalTaken]
+        case .scheduled:
+            return [.occasionalTaken, .startSchedule]
+        case .unspecified:
+            return [.occasionalTaken, .startSchedule]
         }
     }
 }

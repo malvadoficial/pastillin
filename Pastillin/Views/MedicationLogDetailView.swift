@@ -14,6 +14,7 @@ struct MedicationLogDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Query private var medications: [Medication]
     @Query private var allLogs: [IntakeLog]
+    @Query private var allIntakes: [Intake]
     @Query private var appSettings: [AppSettings]
     @AppStorage("selectedTab") private var selectedTab: AppTab = .today
     @AppStorage("shoppingCartDisclaimerShown") private var shoppingCartDisclaimerShown: Bool = false
@@ -24,8 +25,11 @@ struct MedicationLogDetailView: View {
     @State private var showRemoveForDayConfirmation = false
     @State private var showDeleteOccasionalConfirmation = false
     @State private var showShoppingDisclaimerAlert = false
+    @State private var showDateEditor = false
+    @State private var editedDate: Date = Date()
     @State private var pendingAddToCart = false
     @State private var pendingOpenCart = false
+    @State private var showOfficialInfoExpanded = false
     private var officialFullName: String? { normalized(medication.cimaNombreCompleto) }
     private var officialActiveIngredient: String? { normalized(medication.cimaPrincipioActivo) }
     private var officialLaboratory: String? { normalized(medication.cimaLaboratorio) }
@@ -59,65 +63,84 @@ struct MedicationLogDetailView: View {
                     if let note = medication.note, !note.isEmpty {
                         Text(note).foregroundStyle(.secondary)
                     }
-                    Text(String(format: L10n.tr("detail_day_label_format"), dateString(dayKey)))
-                        .foregroundStyle(.secondary)
+                    Button {
+                        editedDate = dayKey
+                        showDateEditor = true
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text(String(format: L10n.tr("detail_day_label_format"), dateString(dayKey)))
+                                .foregroundStyle(.secondary)
+                            Image(systemName: "calendar")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .buttonStyle(.plain)
                 }
 
                 if hasOfficialInfo {
-                    Section(L10n.tr("official_info_section_title")) {
-                        if let fullName = officialFullName {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(L10n.tr("official_info_full_name"))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Text(fullName)
-                                    .font(.subheadline.weight(.semibold))
-                            }
-                        }
+                    Section {
+                        DisclosureGroup(
+                            isExpanded: $showOfficialInfoExpanded,
+                            content: {
+                                if let fullName = officialFullName {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(L10n.tr("official_info_full_name"))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Text(fullName)
+                                            .font(.subheadline.weight(.semibold))
+                                    }
+                                }
 
-                        if let activeIngredient = officialActiveIngredient {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(L10n.tr("official_info_active_ingredient"))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Text(activeIngredient)
-                                    .font(.subheadline.weight(.semibold))
-                            }
-                        }
+                                if let activeIngredient = officialActiveIngredient {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(L10n.tr("official_info_active_ingredient"))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Text(activeIngredient)
+                                            .font(.subheadline.weight(.semibold))
+                                    }
+                                }
 
-                        if let laboratory = officialLaboratory {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(L10n.tr("official_info_laboratory"))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Text(laboratory)
-                                    .font(.subheadline.weight(.semibold))
-                            }
-                        }
+                                if let laboratory = officialLaboratory {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(L10n.tr("official_info_laboratory"))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Text(laboratory)
+                                            .font(.subheadline.weight(.semibold))
+                                    }
+                                }
 
-                        if let cn = officialCN {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(L10n.tr("official_info_cn"))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Text(cn)
-                                    .font(.subheadline.weight(.semibold))
-                            }
-                        }
+                                if let cn = officialCN {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(L10n.tr("official_info_cn"))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Text(cn)
+                                            .font(.subheadline.weight(.semibold))
+                                    }
+                                }
 
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(L10n.tr("official_info_source"))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text(L10n.tr("official_info_source_value"))
-                                .font(.subheadline.weight(.semibold))
-                        }
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(L10n.tr("official_info_source"))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Text(L10n.tr("official_info_source_value"))
+                                        .font(.subheadline.weight(.semibold))
+                                }
 
-                        if isAEMPSIntegrationEnabled, let url = officialProspectoURL {
-                            Link(destination: url) {
-                                Label(L10n.tr("official_info_leaflet_button"), systemImage: "doc.text")
+                                if isAEMPSIntegrationEnabled, let url = officialProspectoURL {
+                                    Link(destination: url) {
+                                        Label(L10n.tr("official_info_leaflet_button"), systemImage: "doc.text")
+                                    }
+                                }
+                            },
+                            label: {
+                                Text(L10n.tr("official_info_section_title"))
                             }
-                        }
+                        )
                     }
                 }
 
@@ -139,6 +162,28 @@ struct MedicationLogDetailView: View {
                     }
                 }
 
+                if log.isTaken {
+                    Section(L10n.tr("detail_section_time")) {
+                        HStack {
+                            Text(L10n.tr("detail_label_time_taken"))
+                            Spacer()
+                            if log.takenAt == nil {
+                                Text("--")
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                DatePicker(
+                                    "",
+                                    selection: takenAtBinding,
+                                    displayedComponents: [.hourAndMinute]
+                                )
+                                .labelsHidden()
+                            }
+                        }
+
+                        Toggle(L10n.tr("detail_time_unspecified_toggle"), isOn: takenTimeUnspecifiedBinding)
+                    }
+                }
+
                 Section {
                     Button {
                         requestAddToCart()
@@ -148,18 +193,6 @@ struct MedicationLogDetailView: View {
                             systemImage: medication.inShoppingCart ? "cart.fill" : "cart.badge.plus"
                         )
                         .frame(maxWidth: .infinity, alignment: .center)
-                    }
-                }
-
-
-                if log.isTaken {
-                    Section(L10n.tr("detail_section_time")) {
-                        // La hora solo se puede editar si está tomado
-                        DatePicker(
-                            L10n.tr("detail_label_time_taken"),
-                            selection: takenAtBinding,
-                            displayedComponents: [.hourAndMinute]
-                        )
                     }
                 }
 
@@ -192,10 +225,12 @@ struct MedicationLogDetailView: View {
                     Button(L10n.tr("button_close")) { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        requestCartOpen()
-                    } label: {
-                        ShoppingCartIconView(count: shoppingCartCount)
+                    if shoppingCartCount > 0 {
+                        Button {
+                            requestCartOpen()
+                        } label: {
+                            ShoppingCartIconView(count: shoppingCartCount)
+                        }
                     }
                 }
             }
@@ -222,6 +257,35 @@ struct MedicationLogDetailView: View {
                 }
             } message: {
                 Text(L10n.tr("cart_disclaimer_message"))
+            }
+            .sheet(isPresented: $showDateEditor) {
+                NavigationStack {
+                    Form {
+                        Section {
+                            DatePicker(
+                                L10n.tr("occasional_date"),
+                                selection: $editedDate,
+                                displayedComponents: [.date]
+                            )
+                            .datePickerStyle(.graphical)
+                        }
+                    }
+                    .navigationTitle(L10n.tr("occasional_date"))
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button(L10n.tr("button_cancel")) {
+                                showDateEditor = false
+                            }
+                        }
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button(L10n.tr("button_save")) {
+                                updateScheduledDate(to: editedDate)
+                                showDateEditor = false
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -323,6 +387,27 @@ struct MedicationLogDetailView: View {
         )
     }
 
+    private var takenTimeUnspecifiedBinding: Binding<Bool> {
+        Binding(
+            get: { log.takenAt == nil },
+            set: { unspecified in
+                if unspecified {
+                    log.takenAt = nil
+                } else if log.takenAt == nil {
+                    let cal = Calendar.current
+                    let isToday = cal.isDateInToday(dayKey)
+                    if isToday {
+                        log.takenAt = Date()
+                    } else {
+                        log.takenAt = cal.date(bySettingHour: 12, minute: 0, second: 0, of: dayKey) ?? dayKey
+                    }
+                }
+                try? modelContext.save()
+                NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
+            }
+        )
+    }
+
     // MARK: - Helpers
 
     private func dateString(_ d: Date) -> String {
@@ -400,10 +485,105 @@ struct MedicationLogDetailView: View {
     private func removeScheduledForThisDay() {
         guard medication.kind == .scheduled else { return }
         medication.setSkipped(true, on: dayKey)
-        modelContext.delete(log)
+        if let intakeID = log.intakeID {
+            let duplicateLogs = allLogs.filter { $0.intakeID == intakeID }
+            for duplicate in duplicateLogs {
+                modelContext.delete(duplicate)
+            }
+            if let intake = allIntakes.first(where: { $0.id == intakeID }) {
+                modelContext.delete(intake)
+            }
+        } else {
+            modelContext.delete(log)
+        }
         try? modelContext.save()
         NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
         dismiss()
+    }
+
+    private func updateScheduledDate(to newDate: Date) {
+        let cal = Calendar.current
+        if medication.repeatUnit == .hour {
+            let oldDate: Date
+            let oldTimeComponents: DateComponents
+            if let intakeID = log.intakeID,
+               let intake = allIntakes.first(where: { $0.id == intakeID }) {
+                oldDate = normalizedHourlyMoment(intake.scheduledAt, calendar: cal)
+                oldTimeComponents = cal.dateComponents([.hour, .minute], from: intake.scheduledAt)
+            } else {
+                oldDate = normalizedHourlyMoment(log.dateKey, calendar: cal)
+                oldTimeComponents = DateComponents(hour: 12, minute: 0)
+            }
+            let newDay = cal.startOfDay(for: newDate)
+            var comps = cal.dateComponents([.year, .month, .day], from: newDay)
+            comps.hour = oldTimeComponents.hour ?? 12
+            comps.minute = oldTimeComponents.minute ?? 0
+            let normalizedNewDate = normalizedHourlyMoment(cal.date(from: comps) ?? newDay, calendar: cal)
+            guard oldDate != normalizedNewDate else { return }
+
+            if medication.kind == .scheduled,
+               let intakeID = log.intakeID,
+               let intake = allIntakes.first(where: { $0.id == intakeID }) {
+                try? IntakeSchedulingService.moveScheduledIntakeAndReflow(
+                    medication: medication,
+                    intake: intake,
+                    newDate: normalizedNewDate,
+                    modelContext: modelContext
+                )
+            } else if let intakeID = log.intakeID,
+                      let intake = allIntakes.first(where: { $0.id == intakeID }) {
+                intake.scheduledAt = normalizedNewDate
+            }
+
+            let newDayKey = cal.startOfDay(for: normalizedNewDate)
+            log.dateKey = newDayKey
+            if let takenAt = log.takenAt {
+                let hm = cal.dateComponents([.hour, .minute], from: takenAt)
+                var comps = cal.dateComponents([.year, .month, .day], from: newDayKey)
+                comps.hour = hm.hour
+                comps.minute = hm.minute
+                log.takenAt = cal.date(from: comps) ?? newDayKey
+            }
+
+            try? modelContext.save()
+            NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
+            return
+        }
+
+        let oldDay = cal.startOfDay(for: log.dateKey)
+        let newDay = cal.startOfDay(for: newDate)
+        guard oldDay != newDay else { return }
+
+        if medication.kind == .scheduled,
+           let intakeID = log.intakeID,
+           let intake = allIntakes.first(where: { $0.id == intakeID }) {
+            try? IntakeSchedulingService.moveScheduledIntakeAndReflow(
+                medication: medication,
+                intake: intake,
+                newDate: newDay,
+                modelContext: modelContext
+            )
+        } else if let intakeID = log.intakeID,
+                  let intake = allIntakes.first(where: { $0.id == intakeID }) {
+            intake.scheduledAt = cal.date(bySettingHour: 12, minute: 0, second: 0, of: newDay) ?? newDay
+        }
+
+        log.dateKey = newDay
+        if let takenAt = log.takenAt {
+            let hm = cal.dateComponents([.hour, .minute], from: takenAt)
+            var comps = cal.dateComponents([.year, .month, .day], from: newDay)
+            comps.hour = hm.hour
+            comps.minute = hm.minute
+            log.takenAt = cal.date(from: comps) ?? newDay
+        }
+
+        try? modelContext.save()
+        NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
+    }
+
+    private func normalizedHourlyMoment(_ date: Date, calendar: Calendar) -> Date {
+        let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        return calendar.date(from: components) ?? date
     }
 
     private func deleteOccasionalMedication() {

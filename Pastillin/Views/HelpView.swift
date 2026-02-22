@@ -47,7 +47,6 @@ struct HelpView: View {
                 Text(L10n.tr("help_note_future"))
                 Text(L10n.tr("help_note_report"))
                 Text(L10n.tr("help_note_disclaimer_cart"))
-                Text(L10n.tr("help_note_mac"))
             }
         }
         .textSelection(.enabled)
