@@ -12,8 +12,16 @@
 "taken_fem" = "Tomada";
 "not_taken_fem" = "No tomada";
 "missed_empty" = "No tienes ninguna toma atrasada para el rango que has seleccionado.";
+"missed_range_7" = "Últimos 7 días";
+"missed_range_30" = "Últimos 30 días";
+"missed_range_90" = "Últimos 90 días";
+"missed_range_180" = "Últimos 180 días";
 "missed_modal_title" = "Gestionar toma";
 "missed_modal_message_format" = "%@ · %@";
+"missed_action" = "Gestionar toma";
+"missed_action_taken" = "**Sí** que la tomé";
+"missed_action_not_taken" = "**No** la he tomado";
+"missed_action_taken_other_day" = "La tomé pero **otro día**";
 "missed_move_alert_title" = "Mover próximas tomas";
 "missed_move_alert_message" = "Selecciona el día de la toma. Después se moverán las tomas futuras para mantener la frecuencia configurada de este medicamento.";
 "missed_move_alert_confirm" = "Aceptar";
@@ -24,6 +32,7 @@
 "medications_section_scheduled" = "Tratamientos pautados";
 "medications_section_occasional" = "Uso ocasional";
 "medications_section_unspecified" = "No especificado";
+"medications_section_deactivated" = "Desactivados";
 "medications_section_search" = "Buscador";
 "medication_add_type_title" = "Tipo de medicamento";
 "medication_inactive_badge" = "Desactivada";
@@ -34,6 +43,7 @@
 "summary_end_line_format" = "Fin %@";
 "summary_finished_line_format" = "Finalizado %@";
 "summary_occasional_date_line_format" = "Última toma %@";
+"summary_last_taken_line_format" = "Última toma %@ · %@";
 "summary_chronic" = "Sin fecha de fin";
 "summary_no_schedule" = "Sin pauta";
 "summary_no_date" = "Sin fecha";
@@ -78,6 +88,8 @@
 "occasional_section_intakes" = "Tomas";
 "occasional_add_today_intake" = "Añadir toma Hoy";
 "occasional_add_today_intake_alert_title" = "Toma registrada";
+"occasional_add_today_intake_alert_message_created_format" = "Se ha añadido la toma de hoy para %@ a las %@.";
+"occasional_add_today_intake_alert_message_updated_format" = "Se ha actualizado la toma de hoy para %@ a las %@.";
 "edit_section_history_format" = "Historial (últimas %d)";
 "edit_title_new" = "Nueva medicina";
 "edit_title_new_occasional" = "Nuevo uso ocasional";
@@ -100,6 +112,10 @@
 "history_taken_time_format" = "Tomada · %@";
 "history_not_taken" = "No tomada";
 "history_actions_title" = "Editar toma";
+"history_edit_datetime_picker" = "Fecha y hora";
+"history_edit_time_picker" = "Hora";
+"history_action_save_datetime" = "Guardar fecha y hora";
+"history_action_save_time" = "Guardar hora";
 "history_action_delete" = "Borrar toma";
 "time_unspecified" = "Hora no especificada";
 "medication_inactive_future_intakes_removed" = "Se eliminarán solo las tomas programadas futuras. Las tomas pasadas se conservan.";
@@ -202,6 +218,11 @@
 "tutorial_v2_step_13" = "En el carrito ves qué medicamentos necesitas comprar y cuántas dosis te quedan, para recibir aviso antes de que se terminen.";
 "tutorial_v2_step_14" = "Este icono avisa de tomas atrasadas: son tomas pendientes de días anteriores.";
 "tutorial_v2_step_15" = "En tomas atrasadas puedes indicar si la tomaste, si no la tomaste o si la tomaste otro día, para mantener tu historial correcto.";
+"tutorial_cabinet_step_1" = "En Botiquín puedes crear, editar y organizar tus medicamentos.";
+"tutorial_calendar_step_1" = "En Calendario puedes revisar tomas pasadas, de hoy y futuras.";
+"tutorial_today_step_1" = "En Hoy marcas rápidamente lo que has tomado.";
+"tutorial_cart_step_1" = "El carrito te ayuda a saber qué medicamentos debes reponer.";
+"tutorial_settings_step_1" = "En Ajustes configuras recordatorios, informes y opciones de la app.";
 "tutorial_v2_outro" = "Y eso es todo por ahora. Gracias por usar Pastillín. Estamos aquí para ayudarte.";
 
 "help_title" = "Ayuda";

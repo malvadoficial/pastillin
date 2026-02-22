@@ -289,11 +289,9 @@ struct CalendarView: View {
     }
 
     private func refreshPendingCount() {
-        let fetchedMeds = (try? modelContext.fetch(FetchDescriptor<Medication>())) ?? medications
-        let fetchedLogs = (try? modelContext.fetch(FetchDescriptor<IntakeLog>())) ?? logs
         pendingCount = PendingIntakeService.pendingMedicationCount(
-            medications: fetchedMeds,
-            logs: fetchedLogs
+            medications: medications,
+            logs: logs
         )
     }
 
@@ -673,7 +671,9 @@ struct CalendarView: View {
                 return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
             }
 
+        let representedMedicationIDs = Set(rows.map { $0.med.id })
         for med in orphanMeds {
+            if representedMedicationIDs.contains(med.id) { continue }
             guard let log = orphanLogs.first(where: { $0.medicationID == med.id }) else { continue }
             rows.append(CalendarRow(id: log.id, med: med, log: log, intake: nil))
         }

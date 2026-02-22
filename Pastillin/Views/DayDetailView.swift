@@ -206,7 +206,9 @@ struct DayDetailView: View {
                 return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
             }
 
+        let representedMedicationIDs = Set(rows.map { $0.med.id })
         for med in orphanMeds {
+            if representedMedicationIDs.contains(med.id) { continue }
             guard let log = orphanLogs.first(where: { $0.medicationID == med.id }) else { continue }
             rows.append(DayRow(id: log.id, med: med, log: log, intake: nil))
         }

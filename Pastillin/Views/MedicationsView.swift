@@ -72,18 +72,18 @@ struct MedicationsView: View {
             if medications.isEmpty {
                 EmptyMedicinesStateView()
                     .listRowBackground(Color.clear)
-            } else if hasSearchText && scheduledMeds.isEmpty && occasionalGroups.isEmpty && unspecifiedMeds.isEmpty {
+            } else if hasSearchText && scheduledMeds.isEmpty && occasionalGroups.isEmpty && deactivatedMeds.isEmpty {
                 Text(L10n.tr("medications_search_no_results"))
                     .foregroundStyle(.secondary)
             } else {
                 scheduledSection
                 occasionalSection
-                unspecifiedSection
+                deactivatedSection
             }
         }
         .id("medications_list_\(medicationsReselectToken)")
         .textSelection(.enabled)
-        .listSectionSpacing(2)
+        .listSectionSpacing(8)
         .safeAreaPadding(.bottom, 84)
         .environment(\.editMode, $listEditMode)
         .navigationTitle(L10n.tr("medications_title"))
@@ -146,17 +146,17 @@ struct MedicationsView: View {
         }
     }
 
-    private var unspecifiedSection: some View {
+    private var deactivatedSection: some View {
         Section {
             if isUnspecifiedExpanded {
-                ForEach(unspecifiedMeds) { med in
+                ForEach(deactivatedMeds) { med in
                     medicationRow(med)
                 }
-                .onDelete { delete($0, in: unspecifiedMeds) }
+                .onDelete { delete($0, in: deactivatedMeds) }
             }
         } header: {
             collapsibleHeader(
-                title: L10n.tr("medications_section_unspecified"),
+                title: L10n.tr("medications_section_deactivated"),
                 isExpanded: $isUnspecifiedExpanded
             )
         }
@@ -253,18 +253,15 @@ struct MedicationsView: View {
     }
 
     private var scheduledMeds: [Medication] {
-        let all = sortedMeds.filter { $0.kind == .scheduled && matchesSearch($0) }
-        let active = all.filter(\.isActive)
-        let inactive = all.filter { !$0.isActive }
-        return active + inactive
+        sortedMeds.filter { $0.kind == .scheduled && $0.isActive && matchesSearch($0) }
     }
 
     private var occasionalMeds: [Medication] {
-        sortedMeds.filter { $0.kind == .occasional && matchesSearch($0) }
+        sortedMeds.filter { $0.kind == .occasional && $0.isActive && matchesSearch($0) }
     }
 
-    private var unspecifiedMeds: [Medication] {
-        sortedMeds.filter { $0.kind == .unspecified && matchesSearch($0) }
+    private var deactivatedMeds: [Medication] {
+        sortedMeds.filter { !$0.isActive && matchesSearch($0) }
     }
 
     private var occasionalGroups: [OccasionalGroup] {
@@ -325,22 +322,16 @@ struct MedicationsView: View {
                 )
             }
 
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(med.name)
-                        .font(.headline.weight(.semibold))
+            VStack(alignment: .leading, spacing: 6) {
+                Text(med.name)
+                    .font(.headline.weight(.semibold))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                    if !med.isActive {
-                        Text(L10n.tr("medication_inactive_badge"))
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(AppTheme.brandRed)
-                    }
-
-                    if med.kind == .occasional {
-                        Text(L10n.tr("medication_occasional_badge"))
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(AppTheme.brandBlue)
-                    }
+                if !med.isActive {
+                    Text(L10n.tr("medication_inactive_badge"))
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(AppTheme.brandRed)
                 }
 
                 summaryView(med)
@@ -357,7 +348,8 @@ struct MedicationsView: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 10)
+        .listRowInsets(EdgeInsets(top: 6, leading: 14, bottom: 6, trailing: 14))
         .opacity(med.isActive ? 1 : 0.55)
         .contentShape(Rectangle())
         .onTapGesture {
@@ -442,8 +434,7 @@ struct MedicationsView: View {
             scheduled.move(fromOffsets: source, toOffset: destination)
         }
 
-        let current = scheduled + occasionalMeds
-            + unspecifiedMeds
+        let current = scheduled + occasionalMeds + deactivatedMeds
         for (idx, med) in current.enumerated() {
             med.sortOrder = idx
         }
@@ -462,7 +453,7 @@ struct MedicationsView: View {
                 currentOrder += 1
             }
         }
-        for med in unspecifiedMeds {
+        for med in deactivatedMeds {
             med.sortOrder = currentOrder
             currentOrder += 1
         }
@@ -529,9 +520,9 @@ struct MedicationsView: View {
     @ViewBuilder
     private func summaryView(_ med: Medication) -> some View {
         if !med.isActive && !med.hasConfiguredStartDate {
-            Text(med.kind == .occasional ? L10n.tr("summary_no_date") : L10n.tr("summary_no_schedule"))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            EmptyView()
+        } else if med.kind == .unspecified && !med.hasConfiguredStartDate {
+            EmptyView()
         } else if med.kind == .occasional {
             Text(occasionalSummaryText(for: med))
                 .font(.subheadline)
@@ -578,6 +569,14 @@ struct MedicationsView: View {
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(.primary)
                 }
+
+                if med.kind == .scheduled, let lastTakenLog = latestTakenLog(for: med) {
+                    let takenDay = Fmt.dayMedium(lastTakenLog.takenAt ?? lastTakenLog.dateKey)
+                    let takenTime = lastTakenLog.takenAt.map { Fmt.timeShort($0) } ?? L10n.tr("time_unspecified")
+                    Text(String(format: L10n.tr("summary_last_taken_line_format"), takenDay, takenTime))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppTheme.brandBlue)
+                }
             }
         }
     }
@@ -594,5 +593,13 @@ struct MedicationsView: View {
         let cal = Calendar.current
         let dayKey = cal.startOfDay(for: med.startDate)
         return logs.first(where: { $0.medicationID == med.id && cal.isDate($0.dateKey, inSameDayAs: dayKey) })?.takenAt
+    }
+
+    private func latestTakenLog(for med: Medication) -> IntakeLog? {
+        logs
+            .filter { $0.medicationID == med.id && $0.isTaken }
+            .max { lhs, rhs in
+                (lhs.takenAt ?? lhs.dateKey) < (rhs.takenAt ?? rhs.dateKey)
+            }
     }
 }

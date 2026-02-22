@@ -12,8 +12,16 @@
 "taken_fem" = "Taken";
 "not_taken_fem" = "Not taken";
 "missed_empty" = "You don't have any overdue intakes for the selected range.";
+"missed_range_7" = "Last 7 days";
+"missed_range_30" = "Last 30 days";
+"missed_range_90" = "Last 90 days";
+"missed_range_180" = "Last 180 days";
 "missed_modal_title" = "Manage intake";
 "missed_modal_message_format" = "%@ · %@";
+"missed_action" = "Manage intake";
+"missed_action_taken" = "Mark as taken";
+"missed_action_not_taken" = "Keep as not taken";
+"missed_action_taken_other_day" = "Mark as taken on another day";
 "missed_move_alert_title" = "Move next intakes";
 "missed_move_alert_message" = "Select the intake day. Future intakes for this medication will be moved to keep the configured day/month frequency.";
 "missed_move_alert_confirm" = "Accept";
@@ -24,6 +32,7 @@
 "medications_section_scheduled" = "Scheduled treatments";
 "medications_section_occasional" = "Occasional use";
 "medications_section_unspecified" = "Unspecified";
+"medications_section_deactivated" = "Disabled";
 "medications_section_search" = "Search";
 "medication_add_type_title" = "Medication type";
 "medication_inactive_badge" = "Disabled";
@@ -34,6 +43,7 @@
 "summary_end_line_format" = "End %@";
 "summary_finished_line_format" = "Finished %@";
 "summary_occasional_date_line_format" = "Last intake %@";
+"summary_last_taken_line_format" = "Last intake %@ · %@";
 "summary_chronic" = "Chronic";
 "summary_no_schedule" = "No schedule";
 "summary_no_date" = "No date";
@@ -78,6 +88,8 @@
 "occasional_section_intakes" = "Intakes";
 "occasional_add_today_intake" = "Add intake Today";
 "occasional_add_today_intake_alert_title" = "Intake recorded";
+"occasional_add_today_intake_alert_message_created_format" = "Today's intake was added for %@ at %@.";
+"occasional_add_today_intake_alert_message_updated_format" = "Today's intake was updated to %@ at %@.";
 "edit_section_history_format" = "History (last %d)";
 "edit_title_new" = "New medication";
 "edit_title_new_occasional" = "New occasional-use medication";
@@ -100,6 +112,10 @@
 "history_taken_time_format" = "Taken · %@";
 "history_not_taken" = "Not taken";
 "history_actions_title" = "Edit intake";
+"history_edit_datetime_picker" = "Date and time";
+"history_edit_time_picker" = "Time";
+"history_action_save_datetime" = "Save date and time";
+"history_action_save_time" = "Save time";
 "history_action_delete" = "Delete intake";
 "time_unspecified" = "Time not specified";
 "medication_inactive_future_intakes_removed" = "Only future scheduled intakes will be removed. Past intakes are kept.";
@@ -202,6 +218,11 @@
 "tutorial_v2_step_13" = "In the cart you can see what to buy and how many doses are left, so you get a warning before medications run out.";
 "tutorial_v2_step_14" = "This icon warns about overdue intakes: pending doses from previous days.";
 "tutorial_v2_step_15" = "In overdue intakes you can mark Taken, Not taken, or Taken on another day to keep your history accurate.";
+"tutorial_cabinet_step_1" = "In Cabinet you can create, edit, and organize your medications.";
+"tutorial_calendar_step_1" = "In Calendar you can review past, current, and future intakes.";
+"tutorial_today_step_1" = "In Today you can quickly mark what you have taken.";
+"tutorial_cart_step_1" = "The cart helps you track which medications you need to restock.";
+"tutorial_settings_step_1" = "In Settings you can configure reminders, reports, and app options.";
 "tutorial_v2_outro" = "That is all for now. Thank you for using Pastillin. We are here to help.";
 
 "help_title" = "Help";

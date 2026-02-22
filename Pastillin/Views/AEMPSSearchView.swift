@@ -118,6 +118,11 @@ struct AEMPSSearchView: View {
                 }
             }
         }
+        .safeAreaInset(edge: .bottom) {
+            if !results.isEmpty {
+                Color.clear.frame(height: 72)
+            }
+        }
         .navigationTitle(L10n.tr("aemps_search_title"))
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $selectedMedication) { wrapper in
