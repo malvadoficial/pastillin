@@ -9,6 +9,7 @@ struct TutorialSlide: Codable, Identifiable {
 struct TutorialView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var currentIndex = 0
+    @State private var blackOverlayOpacity: Double = 1
 
     private let slides: [TutorialSlide] = TutorialSlidesLoader.load()
 
@@ -20,29 +21,18 @@ struct TutorialView: View {
                         .padding(.horizontal, 16)
                         .padding(.top, 8)
 
-                    Spacer(minLength: 8)
-
-                    if let slide = currentSlide {
-                        Image(slide.imageName)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(
+                    TabView(selection: $currentIndex) {
+                        ForEach(Array(slides.enumerated()), id: \.element.id) { index, slide in
+                            TutorialSlidePageView(
+                                slide: slide,
                                 maxWidth: min(proxy.size.width - 12, 900),
-                                maxHeight: proxy.size.height * 0.7
+                                maxImageHeight: proxy.size.height * 0.7
                             )
+                            .tag(index)
+                        }
                     }
-
-                    ScrollView(.vertical, showsIndicators: true) {
-                        Text(currentSlide.map { L10n.tr($0.textKey) } ?? "")
-                            .font(.body)
-                            .multilineTextAlignment(.leading)
-                            .frame(maxWidth: min(proxy.size.width - 24, 900), alignment: .leading)
-                            .padding(.vertical, 12)
-                    }
-                    .frame(maxWidth: min(proxy.size.width - 24, 900), maxHeight: 130)
-                    .padding(.top, 10)
-
-                    Spacer(minLength: 8)
+                    .tabViewStyle(.page(indexDisplayMode: .never))
+                    .animation(.easeInOut(duration: 0.28), value: currentIndex)
 
                     HStack {
                         Button {
@@ -63,7 +53,7 @@ struct TutorialView: View {
 
                         Button {
                             if isLastSlide {
-                                dismiss()
+                                closeWithFade()
                             } else {
                                 move(1)
                             }
@@ -85,21 +75,27 @@ struct TutorialView: View {
             .ignoresSafeArea(edges: .bottom)
         }
         .interactiveDismissDisabled()
+        .overlay {
+            Color.black
+                .opacity(blackOverlayOpacity)
+                .ignoresSafeArea()
+                .allowsHitTesting(blackOverlayOpacity > 0.01)
+        }
+        .onAppear {
+            withAnimation(.easeOut(duration: 0.35)) {
+                blackOverlayOpacity = 0
+            }
+        }
     }
 
     private var topBar: some View {
         HStack {
             Spacer()
             Button(L10n.tr("tutorial_skip")) {
-                dismiss()
+                closeWithFade()
             }
             .font(.headline)
         }
-    }
-
-    private var currentSlide: TutorialSlide? {
-        guard slides.indices.contains(currentIndex) else { return nil }
-        return slides[currentIndex]
     }
 
     private var canMoveBack: Bool {
@@ -118,7 +114,52 @@ struct TutorialView: View {
     private func move(_ offset: Int) {
         let next = currentIndex + offset
         guard slides.indices.contains(next) else { return }
-        currentIndex = next
+        withAnimation(.easeInOut(duration: 0.28)) {
+            currentIndex = next
+        }
+    }
+
+    private func closeWithFade() {
+        withAnimation(.easeIn(duration: 0.35)) {
+            blackOverlayOpacity = 1
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.36) {
+            dismiss()
+        }
+    }
+}
+
+private struct TutorialSlidePageView: View {
+    let slide: TutorialSlide
+    let maxWidth: CGFloat
+    let maxImageHeight: CGFloat
+
+    private var safeTextWidth: CGFloat {
+        max(120, maxWidth - 12)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: 8)
+
+            Image(slide.imageName)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: maxWidth, maxHeight: maxImageHeight)
+
+            ScrollView(.vertical, showsIndicators: true) {
+                Text(L10n.tr(slide.textKey))
+                    .font(.body)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: safeTextWidth, alignment: .leading)
+                    .padding(.vertical, 12)
+            }
+            .frame(maxWidth: safeTextWidth, maxHeight: 130)
+            .padding(.top, 10)
+
+            Spacer(minLength: 8)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

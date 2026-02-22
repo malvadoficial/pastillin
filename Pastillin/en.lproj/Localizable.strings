@@ -173,8 +173,8 @@
 "tutorial_skip" = "Skip";
 "tutorial_finish" = "Finish";
 "tutorial_v2_intro" = "Welcome to Pastillin. We will go step by step so everything is easy.";
-"tutorial_v2_step_1" = "This is your Cabinet. Here you keep your medications. If a medication is scheduled, Pastillin prepares future intakes for you. If it is occasional, you log it only when you need it.";
-"tutorial_v2_step_2" = "This bar takes you to the main sections. Use it to move around quickly.";
+"tutorial_v2_step_1" = "This is your Cabinet. Here you keep your medications. Important difference: a scheduled medication is one you must take on a fixed frequency (every X hours, every X days, 3 times a day, or every month). An occasional-use medication is for a specific moment, for example: \"when I have a headache\".";
+"tutorial_v2_step_2" = "This bar takes you to the main sections of the app. You can use it to move quickly between Today, Calendar, Cabinet, and Settings.";
 "tutorial_v2_step_3" = "Use this + button to add a new medication to your Cabinet.";
 "tutorial_v2_step_4" = "In this screen you can create a medication manually: name, type (scheduled or occasional), schedule, and photo if it helps you identify it.";
 "tutorial_v2_step_5" = "If you prefer, you can import official information from AEMPS. You can turn this option on or off anytime.";

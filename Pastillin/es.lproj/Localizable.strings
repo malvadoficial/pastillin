@@ -173,8 +173,8 @@
 "tutorial_skip" = "Saltar";
 "tutorial_finish" = "Finalizar";
 "tutorial_v2_intro" = "Bienvenido a Pastillín. Vamos paso a paso para que te resulte fácil.";
-"tutorial_v2_step_1" = "Este es tu Botiquín. Aquí guardas tus medicamentos. Si un medicamento es pautado, Pastillín prepara las tomas automáticamente. Si es ocasional, lo registras solo cuando lo necesitas.";
-"tutorial_v2_step_2" = "Esta barra te lleva a las secciones principales. Puedes usarla para moverte rápido por la app.";
+"tutorial_v2_step_1" = "Este es tu Botiquín. Aquí guardas tus medicamentos. Diferencia importante: un medicamento pautado es el que debes tomar con una frecuencia fija (cada X horas, cada X días, 3 veces al día o cada mes). Un medicamento de uso ocasional es para un momento puntual, por ejemplo: \"cuando me duele la cabeza\".";
+"tutorial_v2_step_2" = "Esta barra te lleva a las secciones principales de la app. Puedes usarla para moverte rápido entre Hoy, Calendario, Botiquín y Ajustes.";
 "tutorial_v2_step_3" = "Con este botón + añades un medicamento nuevo al Botiquín.";
 "tutorial_v2_step_4" = "En esta pantalla puedes crear el medicamento a mano: nombre, tipo (pautado u ocasional), pauta y foto si te ayuda a identificarlo mejor.";
 "tutorial_v2_step_5" = "Si prefieres, puedes traer la información oficial desde AEMPS. Esta opción se puede activar o desactivar cuando quieras.";
