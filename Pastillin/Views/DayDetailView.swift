@@ -193,7 +193,12 @@ struct DayDetailView: View {
             }
         }
 
-        let medsToShow = Set(dayLogs.map(\.medicationID)).compactMap { medsByID[$0] }.sorted {
+        let legacyOccasionalLogs = dayLogs.filter { log in
+            guard let med = medsByID[log.medicationID] else { return false }
+            return med.kind == .occasional
+        }
+
+        let medsToShow = Set(legacyOccasionalLogs.map(\.medicationID)).compactMap { medsByID[$0] }.sorted {
             let o0 = $0.sortOrder ?? 0
             let o1 = $1.sortOrder ?? 0
             if o0 != o1 { return o0 < o1 }
@@ -201,7 +206,7 @@ struct DayDetailView: View {
         }
 
         return medsToShow.compactMap { med in
-            guard let log = dayLogs.first(where: { $0.medicationID == med.id }) else { return nil }
+            guard let log = legacyOccasionalLogs.first(where: { $0.medicationID == med.id }) else { return nil }
             return DayRow(id: log.id, med: med, log: log, intake: nil)
         }
     }
@@ -356,11 +361,17 @@ struct DayDetailView: View {
         guard let log = logs.first(where: { $0.id == candidate.logID }) else { return }
 
         medication.setSkipped(true, on: candidate.dayKey)
-        if let intakeID = log.intakeID,
-           let intake = intakes.first(where: { $0.id == intakeID }) {
-            modelContext.delete(intake)
+        if let intakeID = log.intakeID {
+            let duplicateLogs = logs.filter { $0.intakeID == intakeID }
+            for duplicate in duplicateLogs {
+                modelContext.delete(duplicate)
+            }
+            if let intake = intakes.first(where: { $0.id == intakeID }) {
+                modelContext.delete(intake)
+            }
+        } else {
+            modelContext.delete(log)
         }
-        modelContext.delete(log)
         try? modelContext.save()
         NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
     }

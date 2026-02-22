@@ -58,13 +58,15 @@ struct CalendarView: View {
                                 let status = statusForDay(day)
                                 let today = isToday(day)
                                 let isSelected = selectedDay.map { Calendar.current.isDate($0, inSameDayAs: day) } ?? false
+                                let dayKey = Calendar.current.startOfDay(for: day)
+                                let todayKey = Calendar.current.startOfDay(for: Date())
+                                let isFutureDay = dayKey > todayKey
+                                let hasFutureScheduledIntakes = isFutureDay && hasScheduledIntakes(on: dayKey)
 
                                 Button {
-                                    let key = Calendar.current.startOfDay(for: day)
-                                    selectedDay = key
-                                    let today = Calendar.current.startOfDay(for: Date())
-                                    if key >= today {
-                                        try? LogService.ensureLogs(for: key, modelContext: modelContext)
+                                    selectedDay = dayKey
+                                    if dayKey >= todayKey {
+                                        try? LogService.ensureLogs(for: dayKey, modelContext: modelContext)
                                     }
                                 } label: {
                                     VStack(spacing: 6) {
@@ -72,9 +74,19 @@ struct CalendarView: View {
                                             .font(dayFont.weight(.semibold))
                                             .frame(maxWidth: .infinity)
 
-                                        Circle()
-                                            .frame(width: statusDotSize, height: statusDotSize)
-                                            .foregroundStyle(color(for: status))
+                                        if isFutureDay {
+                                            if hasFutureScheduledIntakes {
+                                                futureScheduledClockIndicator
+                                            } else {
+                                                Circle()
+                                                    .frame(width: statusDotSize, height: statusDotSize)
+                                                    .foregroundStyle(Color.white)
+                                            }
+                                        } else {
+                                            Circle()
+                                                .frame(width: statusDotSize, height: statusDotSize)
+                                                .foregroundStyle(color(for: status))
+                                        }
                                     }
                                     .frame(maxWidth: .infinity, minHeight: dayCellMinHeight)
                                     .padding(.vertical, isCompactLayout ? 1 : 3)
@@ -434,6 +446,37 @@ struct CalendarView: View {
         }
     }
 
+    private func hasScheduledIntakes(on dayKey: Date) -> Bool {
+        let cal = Calendar.current
+        return intakes.contains { cal.isDate($0.scheduledAt, inSameDayAs: dayKey) }
+    }
+
+    private var futureScheduledClockIndicator: some View {
+        let diameter = statusDotSize + (isCompactLayout ? 4 : 5)
+
+        return ZStack {
+            Circle()
+                .fill(Color.white)
+                .frame(width: diameter, height: diameter)
+
+            Capsule(style: .continuous)
+                .fill(Color.black.opacity(0.9))
+                .frame(width: max(1.2, diameter * 0.12), height: diameter * 0.42)
+                .offset(y: -diameter * 0.11)
+
+            Capsule(style: .continuous)
+                .fill(Color.black.opacity(0.9))
+                .frame(width: max(1.2, diameter * 0.12), height: diameter * 0.34)
+                .rotationEffect(.degrees(54))
+                .offset(x: diameter * 0.12, y: -diameter * 0.02)
+
+            Circle()
+                .fill(Color.black.opacity(0.95))
+                .frame(width: max(1.3, diameter * 0.16), height: max(1.3, diameter * 0.16))
+        }
+        .frame(width: diameter, height: diameter)
+    }
+
     private func isToday(_ day: Date) -> Bool {
         Calendar.current.isDateInToday(day)
     }
@@ -582,8 +625,12 @@ struct CalendarView: View {
             }
         }
 
-        // Fallback legado para datos antiguos sin tomas persistidas.
-        let uniqueMedicationIDs = Set(dayLogs.map(\.medicationID))
+        // Fallback legado solo para usos ocasionales sin intake persistido.
+        let legacyOccasionalLogs = dayLogs.filter { log in
+            guard let med = medsByID[log.medicationID] else { return false }
+            return med.kind == .occasional
+        }
+        let uniqueMedicationIDs = Set(legacyOccasionalLogs.map(\.medicationID))
         let medsToShow = uniqueMedicationIDs.compactMap { medsByID[$0] }.sorted {
             let o0 = $0.sortOrder ?? 0
             let o1 = $1.sortOrder ?? 0
@@ -592,7 +639,7 @@ struct CalendarView: View {
         }
 
         return medsToShow.compactMap { med in
-            guard let log = dayLogs.first(where: { $0.medicationID == med.id }) else { return nil }
+            guard let log = legacyOccasionalLogs.first(where: { $0.medicationID == med.id }) else { return nil }
             return CalendarRow(id: log.id, med: med, log: log, intake: nil)
         }
     }

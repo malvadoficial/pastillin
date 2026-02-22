@@ -466,11 +466,17 @@ struct MedicationLogDetailView: View {
     private func removeScheduledForThisDay() {
         guard medication.kind == .scheduled else { return }
         medication.setSkipped(true, on: dayKey)
-        if let intakeID = log.intakeID,
-           let intake = allIntakes.first(where: { $0.id == intakeID }) {
-            modelContext.delete(intake)
+        if let intakeID = log.intakeID {
+            let duplicateLogs = allLogs.filter { $0.intakeID == intakeID }
+            for duplicate in duplicateLogs {
+                modelContext.delete(duplicate)
+            }
+            if let intake = allIntakes.first(where: { $0.id == intakeID }) {
+                modelContext.delete(intake)
+            }
+        } else {
+            modelContext.delete(log)
         }
-        modelContext.delete(log)
         try? modelContext.save()
         NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
         dismiss()

@@ -105,10 +105,10 @@
 "detail_section_time" = "Hora";
 "detail_label_time_taken" = "Hora tomada";
 "detail_title" = "Detalle";
-"detail_remove_for_day" = "Eliminar de este día";
-"detail_remove_for_day_title" = "Eliminar de este día";
-"detail_remove_for_day_message" = "Solo se eliminará este día. El tratamiento seguirá activo en otras fechas.";
-"detail_remove_for_day_confirm" = "Eliminar día";
+"detail_remove_for_day" = "Eliminar toma";
+"detail_remove_for_day_title" = "Eliminar toma";
+"detail_remove_for_day_message" = "Solo se elimina la toma de este día. El tratamiento seguirá activo para el resto de fechas";
+"detail_remove_for_day_confirm" = "Eliminar toma";
 "detail_delete_intake" = "Eliminar toma";
 "detail_delete_intake_title" = "Eliminar toma";
 "detail_delete_intake_message" = "Esta acción no eliminará el medicamento del botiquín ni el historial.";

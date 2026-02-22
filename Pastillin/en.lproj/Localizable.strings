@@ -105,10 +105,10 @@
 "detail_section_time" = "Time";
 "detail_label_time_taken" = "Taken time";
 "detail_title" = "Detail";
-"detail_remove_for_day" = "Remove for this day";
-"detail_remove_for_day_title" = "Remove for this day";
-"detail_remove_for_day_message" = "Only this day will be removed. The treatment will remain active on other dates.";
-"detail_remove_for_day_confirm" = "Remove day";
+"detail_remove_for_day" = "Delete intake";
+"detail_remove_for_day_title" = "Delete intake";
+"detail_remove_for_day_message" = "Only this day's intake is removed. The treatment will remain active for the rest of the dates.";
+"detail_remove_for_day_confirm" = "Delete intake";
 "detail_delete_intake" = "Delete intake";
 "detail_delete_intake_title" = "Delete intake";
 "detail_delete_intake_message" = "This action will not delete the medication from the cabinet or its history.";
