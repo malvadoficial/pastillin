@@ -12,6 +12,8 @@ import UIKit
 extension Notification.Name {
     static let calendarJumpToToday = Notification.Name("calendarJumpToToday")
     static let intakeLogsDidChange = Notification.Name("intakeLogsDidChange")
+    static let medicationsScrollToTop = Notification.Name("medicationsScrollToTop")
+    static let settingsScrollToTop = Notification.Name("settingsScrollToTop")
 }
 
 enum AppTab: String {
@@ -26,6 +28,7 @@ enum AppTab: String {
 struct RootView: View {
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage("selectedTab") private var selectedTab: AppTab = .medications
+    @AppStorage("medicationsReselectToken") private var medicationsReselectToken: Int = 0
     @AppStorage("legalDisclaimerAccepted") private var legalDisclaimerAccepted = false
     @AppStorage("hasSeenOnboardingTutorial") private var hasSeenOnboardingTutorial = false
     @Query private var settings: [AppSettings]
@@ -142,7 +145,14 @@ struct RootView: View {
         let tabColor = color(for: tab)
 
         return Button {
-            tabSelectionBinding.wrappedValue = tab
+            if tab == .medications, isSelected {
+                medicationsReselectToken &+= 1
+                NotificationCenter.default.post(name: .medicationsScrollToTop, object: nil)
+            } else if tab == .settings, isSelected {
+                NotificationCenter.default.post(name: .settingsScrollToTop, object: nil)
+            } else {
+                tabSelectionBinding.wrappedValue = tab
+            }
         } label: {
             VStack(spacing: 3) {
                 Image(systemName: systemImage)

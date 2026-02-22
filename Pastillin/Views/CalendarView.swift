@@ -24,6 +24,7 @@ struct CalendarView: View {
     @State private var selectedLogDetail: SelectedLogWrapper? = nil
     @State private var dayEditorTarget: DayEditorWrapper? = nil
     @State private var addIntakeTarget: AddIntakeWrapper? = nil
+    @State private var scheduleEditorTarget: ScheduleEditorTarget? = nil
     @State private var showShoppingDisclaimerAlert = false
     @State private var pendingCount: Int = 0
     @State private var calendarRefreshTick: Int = 0
@@ -33,6 +34,7 @@ struct CalendarView: View {
     private var dayCellMinHeight: CGFloat { isCompactLayout ? 30 : 56 }
     private var dayFont: Font { isCompactLayout ? .caption : .subheadline }
     private var statusDotSize: CGFloat { isCompactLayout ? 6 : 9 }
+    private var dayIndicatorDiameter: CGFloat { statusDotSize + (isCompactLayout ? 4 : 5) }
     private var monthTitleFont: Font { isCompactLayout ? .headline : .title3.weight(.semibold) }
     private var monthHeaderHorizontalPadding: CGFloat { isCompactLayout ? 10 : 16 }
     private var weekdayFont: Font { isCompactLayout ? .caption2.weight(.semibold) : .caption.weight(.semibold) }
@@ -43,84 +45,88 @@ struct CalendarView: View {
     }
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: rootSpacing) {
-                    header
+            VStack(spacing: rootSpacing) {
+                header
 
-                    let cells = monthGridCells(for: monthBase)
-                    let columns = Array(repeating: GridItem(.flexible(), spacing: gridSpacing), count: 7)
+                let cells = monthGridCells(for: monthBase)
+                let columns = Array(repeating: GridItem(.flexible(), spacing: gridSpacing), count: 7)
 
-                    weekdayHeader
+                weekdayHeader
 
-                    LazyVGrid(columns: columns, spacing: gridSpacing) {
-                        ForEach(cells) { cell in
-                            if let day = cell.date {
-                                let status = statusForDay(day)
-                                let today = isToday(day)
-                                let isSelected = selectedDay.map { Calendar.current.isDate($0, inSameDayAs: day) } ?? false
-                                let dayKey = Calendar.current.startOfDay(for: day)
-                                let todayKey = Calendar.current.startOfDay(for: Date())
-                                let isFutureDay = dayKey > todayKey
-                                let hasFutureScheduledIntakes = isFutureDay && hasScheduledIntakes(on: dayKey)
+                LazyVGrid(columns: columns, spacing: gridSpacing) {
+                    ForEach(cells) { cell in
+                        if let day = cell.date {
+                            let status = statusForDay(day)
+                            let today = isToday(day)
+                            let isSelected = selectedDay.map { Calendar.current.isDate($0, inSameDayAs: day) } ?? false
+                            let dayKey = Calendar.current.startOfDay(for: day)
+                            let todayKey = Calendar.current.startOfDay(for: Date())
+                            let isFutureDay = dayKey > todayKey
+                            let hasFutureScheduledIntakes = isFutureDay && hasScheduledIntakes(on: dayKey)
 
-                                Button {
-                                    selectedDay = dayKey
-                                    if dayKey >= todayKey {
-                                        try? LogService.ensureLogs(for: dayKey, modelContext: modelContext)
-                                    }
-                                } label: {
-                                    VStack(spacing: 6) {
-                                        Text("\(Calendar.current.component(.day, from: day))")
-                                            .font(dayFont.weight(.semibold))
-                                            .frame(maxWidth: .infinity)
+                            Button {
+                                selectedDay = dayKey
+                                if dayKey >= todayKey {
+                                    try? LogService.ensureLogs(for: dayKey, modelContext: modelContext)
+                                }
+                            } label: {
+                                VStack(spacing: 6) {
+                                    Text("\(Calendar.current.component(.day, from: day))")
+                                        .font(dayFont.weight(.semibold))
+                                        .frame(maxWidth: .infinity)
 
-                                        if isFutureDay {
-                                            if hasFutureScheduledIntakes {
-                                                futureScheduledClockIndicator
-                                            } else {
-                                                Circle()
-                                                    .frame(width: statusDotSize, height: statusDotSize)
-                                                    .foregroundStyle(Color.white)
-                                            }
+                                    if isFutureDay {
+                                        if hasFutureScheduledIntakes {
+                                            futureScheduledClockIndicator
                                         } else {
                                             Circle()
-                                                .frame(width: statusDotSize, height: statusDotSize)
-                                                .foregroundStyle(color(for: status))
+                                                .frame(width: dayIndicatorDiameter, height: dayIndicatorDiameter)
+                                                .foregroundStyle(Color.white)
                                         }
+                                    } else {
+                                        Circle()
+                                            .frame(width: dayIndicatorDiameter, height: dayIndicatorDiameter)
+                                            .foregroundStyle(color(for: status))
                                     }
-                                    .frame(maxWidth: .infinity, minHeight: dayCellMinHeight)
-                                    .padding(.vertical, isCompactLayout ? 1 : 3)
-                                    .padding(.horizontal, 4)
-                                    .background(dayCellBackground(isSelected: isSelected, isToday: today))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(
-                                                isSelected ? AppTheme.brandBlue : (today ? AppTheme.brandRed : Color.clear),
-                                                lineWidth: isSelected ? 2 : (today ? 2 : 0)
-                                            )
-                                    )
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
                                 }
-                                .buttonStyle(.plain)
-                            } else {
-                                Color.clear
-                                    .frame(maxWidth: .infinity, minHeight: dayCellMinHeight)
-                                    .padding(.vertical, isCompactLayout ? 1 : 3)
-                                    .padding(.horizontal, 4)
+                                .frame(maxWidth: .infinity, minHeight: dayCellMinHeight)
+                                .padding(.vertical, isCompactLayout ? 1 : 3)
+                                .padding(.horizontal, 4)
+                                .background(dayCellBackground(isSelected: isSelected, isToday: today))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(
+                                            isSelected ? AppTheme.brandBlue : (today ? AppTheme.brandRed : Color.clear),
+                                            lineWidth: isSelected ? 2 : (today ? 2 : 0)
+                                        )
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
                             }
+                            .buttonStyle(.plain)
+                        } else {
+                            Color.clear
+                                .frame(maxWidth: .infinity, minHeight: dayCellMinHeight)
+                                .padding(.vertical, isCompactLayout ? 1 : 3)
+                                .padding(.horizontal, 4)
                         }
                     }
-                    .id(calendarRefreshTick)
-                    .padding(.horizontal, isCompactLayout ? 8 : 12)
+                }
+                .id(calendarRefreshTick)
+                .padding(.horizontal, isCompactLayout ? 8 : 12)
 
-                    if let day = selectedDay {
+                if let day = selectedDay {
+                    ScrollView {
                         compactListForSelectedDay(day)
                             .padding(.top, isCompactLayout ? 6 : 10)
+                            .padding(.bottom, 84)
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                } else {
+                    Spacer(minLength: 0)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
             }
             .textSelection(.enabled)
-            .safeAreaPadding(.bottom, 84)
             .padding(.bottom, isCompactLayout ? 6 : 0)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -145,26 +151,30 @@ struct CalendarView: View {
                         .accessibilityLabel(L10n.tr("button_edit"))
                     }
 
-                    Button {
-                        lastTabBeforeNoTakenRaw = AppTab.calendar.rawValue
-                        selectedTab = .noTaken
-                    } label: {
-                        PendingIntakesIconView(count: pendingCount)
+                    if pendingCount > 0 {
+                        Button {
+                            lastTabBeforeNoTakenRaw = AppTab.calendar.rawValue
+                            selectedTab = .noTaken
+                        } label: {
+                            PendingIntakesIconView(count: pendingCount)
+                        }
+                        .foregroundStyle(AppTheme.brandRed)
+                        .accessibilityLabel(L10n.tr("tab_not_taken"))
                     }
-                    .foregroundStyle(AppTheme.brandRed)
-                    .accessibilityLabel(L10n.tr("tab_not_taken"))
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button {
-                        if shoppingCartDisclaimerShown {
-                            selectedTab = .cart
-                        } else {
-                            showShoppingDisclaimerAlert = true
+                    if shoppingCartCount > 0 {
+                        Button {
+                            if shoppingCartDisclaimerShown {
+                                selectedTab = .cart
+                            } else {
+                                showShoppingDisclaimerAlert = true
+                            }
+                        } label: {
+                            ShoppingCartIconView(count: shoppingCartCount)
                         }
-                    } label: {
-                        ShoppingCartIconView(count: shoppingCartCount)
+                        .foregroundStyle(AppTheme.brandRed)
                     }
-                    .foregroundStyle(AppTheme.brandRed)
 
                     Button {
                         let target = Calendar.current.startOfDay(for: selectedDay ?? Date())
@@ -191,9 +201,24 @@ struct CalendarView: View {
                     medications: medications.filter { $0.isActive },
                     lastTakenByMedication: latestTakenByMedication()
                 ) { medication, option in
+                    if option == .startSchedule, medication.kind != .occasional {
+                        scheduleEditorTarget = ScheduleEditorTarget(
+                            medication: medication,
+                            day: Calendar.current.startOfDay(for: wrap.day)
+                        )
+                        addIntakeTarget = nil
+                        return
+                    }
                     createManualIntake(for: medication, day: wrap.day, option: option)
                     addIntakeTarget = nil
                 }
+            }
+            .fullScreenCover(item: $scheduleEditorTarget) { target in
+                EditMedicationView(
+                    medication: target.medication,
+                    overrideStartDateOnEdit: target.day,
+                    openedFromCabinet: false
+                )
             }
             .alert(L10n.tr("cart_disclaimer_title"), isPresented: $showShoppingDisclaimerAlert) {
                 Button(L10n.tr("cart_disclaimer_understood")) {
@@ -452,7 +477,7 @@ struct CalendarView: View {
     }
 
     private var futureScheduledClockIndicator: some View {
-        let diameter = statusDotSize + (isCompactLayout ? 4 : 5)
+        let diameter = dayIndicatorDiameter
 
         return ZStack {
             Circle()
@@ -544,6 +569,16 @@ struct CalendarView: View {
                 .font(isCompactLayout ? .caption.weight(.bold) : .subheadline.weight(.bold))
                 .foregroundStyle(AppTheme.brandRed)
                 .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.vertical, isCompactLayout ? 4 : 6)
+                .background {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(.thinMaterial)
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(AppTheme.brandRed.opacity(0.28), lineWidth: 1)
+                        }
+                }
+                .padding(.horizontal, isCompactLayout ? 6 : 8)
 
             if items.isEmpty {
                 EmptyMedicinesStateView()
@@ -603,45 +638,47 @@ struct CalendarView: View {
         let dayLogs = logs.filter { cal.isDate($0.dateKey, inSameDayAs: dayKey) }
         let medsByID = Dictionary(uniqueKeysWithValues: medications.map { ($0.id, $0) })
 
-        if !dayIntakes.isEmpty {
-            let sortedIntakes = dayIntakes.sorted { lhs, rhs in
-                let lm = medsByID[lhs.medicationID]
-                let rm = medsByID[rhs.medicationID]
-                let lo = lm?.sortOrder ?? 0
-                let ro = rm?.sortOrder ?? 0
-                if lo != ro { return lo < ro }
-                if lm?.name != rm?.name {
-                    return (lm?.name ?? "").localizedCaseInsensitiveCompare(rm?.name ?? "") == .orderedAscending
-                }
-                return lhs.scheduledAt < rhs.scheduledAt
+        let sortedIntakes = dayIntakes.sorted { lhs, rhs in
+            let lm = medsByID[lhs.medicationID]
+            let rm = medsByID[rhs.medicationID]
+            let lo = lm?.sortOrder ?? 0
+            let ro = rm?.sortOrder ?? 0
+            if lo != ro { return lo < ro }
+            if lm?.name != rm?.name {
+                return (lm?.name ?? "").localizedCaseInsensitiveCompare(rm?.name ?? "") == .orderedAscending
+            }
+            return lhs.scheduledAt < rhs.scheduledAt
+        }
+
+        let intakeIDs = Set(dayIntakes.map(\.id))
+        var rows: [CalendarRow] = sortedIntakes.compactMap { intake in
+            guard let med = medsByID[intake.medicationID] else { return nil }
+            let log = dayLogs.first(where: { $0.intakeID == intake.id })
+                ?? dayLogs.first(where: { $0.intakeID == nil && $0.medicationID == med.id })
+            guard let log else { return nil }
+            return CalendarRow(id: intake.id, med: med, log: log, intake: intake)
+        }
+
+        let orphanLogs = dayLogs.filter { log in
+            guard let intakeID = log.intakeID else { return true }
+            return !intakeIDs.contains(intakeID)
+        }
+
+        let orphanMeds = Set(orphanLogs.map(\.medicationID))
+            .compactMap { medsByID[$0] }
+            .sorted {
+                let o0 = $0.sortOrder ?? 0
+                let o1 = $1.sortOrder ?? 0
+                if o0 != o1 { return o0 < o1 }
+                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
             }
 
-            return sortedIntakes.compactMap { intake in
-                guard let med = medsByID[intake.medicationID] else { return nil }
-                let log = dayLogs.first(where: { $0.intakeID == intake.id })
-                    ?? dayLogs.first(where: { $0.medicationID == med.id })
-                guard let log else { return nil }
-                return CalendarRow(id: intake.id, med: med, log: log, intake: intake)
-            }
+        for med in orphanMeds {
+            guard let log = orphanLogs.first(where: { $0.medicationID == med.id }) else { continue }
+            rows.append(CalendarRow(id: log.id, med: med, log: log, intake: nil))
         }
 
-        // Fallback legado solo para usos ocasionales sin intake persistido.
-        let legacyOccasionalLogs = dayLogs.filter { log in
-            guard let med = medsByID[log.medicationID] else { return false }
-            return med.kind == .occasional
-        }
-        let uniqueMedicationIDs = Set(legacyOccasionalLogs.map(\.medicationID))
-        let medsToShow = uniqueMedicationIDs.compactMap { medsByID[$0] }.sorted {
-            let o0 = $0.sortOrder ?? 0
-            let o1 = $1.sortOrder ?? 0
-            if o0 != o1 { return o0 < o1 }
-            return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-        }
-
-        return medsToShow.compactMap { med in
-            guard let log = legacyOccasionalLogs.first(where: { $0.medicationID == med.id }) else { return nil }
-            return CalendarRow(id: log.id, med: med, log: log, intake: nil)
-        }
+        return rows
     }
 
     private func slotLabel(for row: CalendarRow) -> String? {
@@ -678,6 +715,12 @@ struct CalendarView: View {
 
     struct AddIntakeWrapper: Identifiable {
         let id = UUID()
+        let day: Date
+    }
+
+    struct ScheduleEditorTarget: Identifiable {
+        let id = UUID()
+        let medication: Medication
         let day: Date
     }
 }
@@ -727,6 +770,10 @@ private struct AddIntakePickerView: View {
         filtered.filter { $0.kind == .scheduled }
     }
 
+    private var unspecified: [Medication] {
+        filtered.filter { $0.kind == .unspecified }
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -744,6 +791,13 @@ private struct AddIntakePickerView: View {
                     if !scheduled.isEmpty {
                         Section(L10n.tr("medications_section_scheduled")) {
                             ForEach(scheduled) { medication in
+                                medicationRow(medication)
+                            }
+                        }
+                    }
+                    if !unspecified.isEmpty {
+                        Section(L10n.tr("medications_section_unspecified")) {
+                            ForEach(unspecified) { medication in
                                 medicationRow(medication)
                             }
                         }
@@ -867,7 +921,7 @@ private enum IntakeAddOption: Hashable {
         case .scheduled:
             return [.occasionalTaken, .startSchedule]
         case .unspecified:
-            return []
+            return [.occasionalTaken, .startSchedule]
         }
     }
 }

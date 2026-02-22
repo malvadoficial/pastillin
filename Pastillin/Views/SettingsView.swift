@@ -30,11 +30,13 @@ struct SettingsView: View {
     @State private var showTutorial = false
 
     @State private var errorText: String? = nil
+    private let topAnchorID = "settingsTopAnchor"
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section(L10n.tr("settings_section_reminder")) {
+            ScrollViewReader { proxy in
+                Form {
+                    Section(L10n.tr("settings_section_reminder")) {
                     Toggle(L10n.tr("settings_toggle_enable"), isOn: $enabled)
                         .onChange(of: enabled) { _, newValue in
                             Task { await applyNotificationSetting(newValue) }
@@ -69,8 +71,9 @@ struct SettingsView: View {
                         .disabled(!enabled)
                     }
                 }
+                .id(topAnchorID)
 
-                Section(L10n.tr("settings_section_appearance")) {
+                    Section(L10n.tr("settings_section_appearance")) {
                     Picker(L10n.tr("settings_appearance_mode"), selection: $appearanceMode) {
                         Text(L10n.tr("settings_appearance_system")).tag(UIAppearanceMode.system)
                         Text(L10n.tr("settings_appearance_light")).tag(UIAppearanceMode.light)
@@ -86,7 +89,7 @@ struct SettingsView: View {
                     }
                 }
 
-                Section {
+                    Section {
                     Toggle(L10n.tr("settings_toggle_autocomplete"), isOn: $autocompleteEnabled)
                         .onChange(of: autocompleteEnabled) { _, newValue in
                             persistSettings(
@@ -117,7 +120,7 @@ struct SettingsView: View {
                     }
                 }
 
-                Section(L10n.tr("settings_section_report")) {
+                    Section(L10n.tr("settings_section_report")) {
                     DatePicker(L10n.tr("settings_label_from"), selection: $reportFrom, displayedComponents: [.date])
                     DatePicker(L10n.tr("settings_label_to"), selection: $reportTo, displayedComponents: [.date])
 
@@ -130,7 +133,7 @@ struct SettingsView: View {
                     }
                 }
 
-                Section(L10n.tr("settings_section_backup")) {
+                    Section(L10n.tr("settings_section_backup")) {
                     Button(L10n.tr("settings_button_generate_backup")) {
                         generateBackup()
                     }
@@ -140,7 +143,7 @@ struct SettingsView: View {
                     }
                 }
 
-                Section(L10n.tr("settings_section_help")) {
+                    Section(L10n.tr("settings_section_help")) {
                     Button {
                         showTutorial = true
                     } label: {
@@ -154,28 +157,28 @@ struct SettingsView: View {
                     }
                 }
 
-                if let e = errorText {
-                    Section {
-                        Text(e).foregroundStyle(AppTheme.brandRed)
+                    if let e = errorText {
+                        Section {
+                            Text(e).foregroundStyle(AppTheme.brandRed)
+                        }
                     }
-                }
 
-                Section {
+                    Section {
                     Button(role: .destructive) {
                         showDeleteAllConfirmation = true
                     } label: {
                         Text(L10n.tr("settings_button_delete_all_data"))
                     }
-                } header: {
-                    Label {
-                        Text(L10n.tr("settings_section_danger"))
-                    } icon: {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(AppTheme.brandRed)
+                    } header: {
+                        Label {
+                            Text(L10n.tr("settings_section_danger"))
+                        } icon: {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(AppTheme.brandRed)
+                        }
                     }
-                }
 
-                Section(L10n.tr("settings_section_legal")) {
+                    Section(L10n.tr("settings_section_legal")) {
                     NavigationLink {
                         LegalDisclaimerView(isMandatory: false, onAccept: nil)
                     } label: {
@@ -183,7 +186,7 @@ struct SettingsView: View {
                     }
                 }
 
-                Section(L10n.tr("settings_section_about")) {
+                    Section(L10n.tr("settings_section_about")) {
                     Button {
                         showAboutSheet = true
                     } label: {
@@ -191,115 +194,122 @@ struct SettingsView: View {
                     }
                 }
 
-                Section {
+                    Section {
                     HStack {
                         Spacer()
                         Text(appVersionText)
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                         Spacer()
-                    }
-                }
-            }
-            .safeAreaPadding(.bottom, 84)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    NavigationTitleWithIcon(
-                        title: L10n.tr("settings_title"),
-                        systemImage: "gearshape",
-                        color: .black
-                    )
-                }
-            }
-            .onAppear { loadOrCreateSettings() }
-            .onChange(of: deleteAllDataCompleted) { _, newValue in
-                guard newValue else { return }
-                deleteAllDataCompleted = false
-                legalDisclaimerAccepted = false
-                loadOrCreateSettings()
-                reportURL = nil
-                backupShareItem = nil
-                errorText = nil
-                showDeleteAllSuccessAlert = true
-            }
-            .fileImporter(
-                isPresented: $showingBackupImporter,
-                allowedContentTypes: [.json],
-                allowsMultipleSelection: false
-            ) { result in
-                switch result {
-                case .success(let urls):
-                    guard let url = urls.first else { return }
-                    pendingRestoreURL = url
-                    showRestoreConfirmation = true
-                case .failure:
-                    errorText = L10n.tr("error_restore_backup")
-                }
-            }
-            .alert(L10n.tr("settings_restore_confirm_title"), isPresented: $showRestoreConfirmation) {
-                Button(L10n.tr("button_cancel"), role: .cancel) {
-                    pendingRestoreURL = nil
-                }
-                Button(L10n.tr("settings_restore_confirm_button"), role: .destructive) {
-                    restoreBackupIfConfirmed()
-                }
-            } message: {
-                Text(L10n.tr("settings_restore_confirm_message"))
-            }
-            .alert(L10n.tr("settings_delete_all_confirm_title"), isPresented: $showDeleteAllConfirmation) {
-                Button(L10n.tr("button_cancel"), role: .cancel) {}
-                Button(L10n.tr("settings_delete_all_confirm_button"), role: .destructive) {
-                    deleteAllDataIfConfirmed()
-                }
-            } message: {
-                Text(L10n.tr("settings_delete_all_confirm_message"))
-            }
-            .alert(L10n.tr("settings_delete_all_success_title"), isPresented: $showDeleteAllSuccessAlert) {
-                Button(L10n.tr("button_ok"), role: .cancel) {
-                    showLegalDisclaimerAfterDelete = true
-                }
-            } message: {
-                Text(L10n.tr("settings_delete_all_success_message"))
-            }
-            .alert(L10n.tr("settings_aemps_info_title"), isPresented: $showAEMPSInfoAlert) {
-                Button(L10n.tr("button_ok"), role: .cancel) {}
-            } message: {
-                Text(L10n.tr("settings_aemps_info_message"))
-            }
-            .fullScreenCover(isPresented: $showLegalDisclaimerAfterDelete) {
-                LegalDisclaimerView(isMandatory: true) {
-                    legalDisclaimerAccepted = true
-                    showLegalDisclaimerAfterDelete = false
-                }
-            }
-            .sheet(item: $backupShareItem) { item in
-                ActivityShareSheet(activityItems: [item.url])
-            }
-            .sheet(isPresented: $showAboutSheet) {
-                NavigationStack {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text(aboutAttributedText)
-                                .padding(.top, 8)
-                                .font(.body)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                        Spacer()
                         }
-                        .padding(16)
                     }
-                    .navigationTitle(L10n.tr("settings_section_about"))
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button(L10n.tr("button_close")) {
-                                showAboutSheet = false
+                }
+                .safeAreaPadding(.bottom, 84)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .principal) {
+                        NavigationTitleWithIcon(
+                            title: L10n.tr("settings_title"),
+                            systemImage: "gearshape",
+                            color: .black
+                        )
+                    }
+                }
+                .onAppear { loadOrCreateSettings() }
+                .onReceive(NotificationCenter.default.publisher(for: .settingsScrollToTop)) { _ in
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        proxy.scrollTo(topAnchorID, anchor: .top)
+                    }
+                }
+                .onChange(of: deleteAllDataCompleted) { _, newValue in
+                    guard newValue else { return }
+                    deleteAllDataCompleted = false
+                    legalDisclaimerAccepted = false
+                    loadOrCreateSettings()
+                    reportURL = nil
+                    backupShareItem = nil
+                    errorText = nil
+                    showDeleteAllSuccessAlert = true
+                }
+                .fileImporter(
+                    isPresented: $showingBackupImporter,
+                    allowedContentTypes: [.json],
+                    allowsMultipleSelection: false
+                ) { result in
+                    switch result {
+                    case .success(let urls):
+                        guard let url = urls.first else { return }
+                        pendingRestoreURL = url
+                        showRestoreConfirmation = true
+                    case .failure:
+                        errorText = L10n.tr("error_restore_backup")
+                    }
+                }
+                .alert(L10n.tr("settings_restore_confirm_title"), isPresented: $showRestoreConfirmation) {
+                    Button(L10n.tr("button_cancel"), role: .cancel) {
+                        pendingRestoreURL = nil
+                    }
+                    Button(L10n.tr("settings_restore_confirm_button"), role: .destructive) {
+                        restoreBackupIfConfirmed()
+                    }
+                } message: {
+                    Text(L10n.tr("settings_restore_confirm_message"))
+                }
+                .alert(L10n.tr("settings_delete_all_confirm_title"), isPresented: $showDeleteAllConfirmation) {
+                    Button(L10n.tr("button_cancel"), role: .cancel) {}
+                    Button(L10n.tr("settings_delete_all_confirm_button"), role: .destructive) {
+                        deleteAllDataIfConfirmed()
+                    }
+                } message: {
+                    Text(L10n.tr("settings_delete_all_confirm_message"))
+                }
+                .alert(L10n.tr("settings_delete_all_success_title"), isPresented: $showDeleteAllSuccessAlert) {
+                    Button(L10n.tr("button_ok"), role: .cancel) {
+                        showLegalDisclaimerAfterDelete = true
+                    }
+                } message: {
+                    Text(L10n.tr("settings_delete_all_success_message"))
+                }
+                .alert(L10n.tr("settings_aemps_info_title"), isPresented: $showAEMPSInfoAlert) {
+                    Button(L10n.tr("button_ok"), role: .cancel) {}
+                } message: {
+                    Text(L10n.tr("settings_aemps_info_message"))
+                }
+                .fullScreenCover(isPresented: $showLegalDisclaimerAfterDelete) {
+                    LegalDisclaimerView(isMandatory: true) {
+                        legalDisclaimerAccepted = true
+                        showLegalDisclaimerAfterDelete = false
+                    }
+                }
+                .sheet(item: $backupShareItem) { item in
+                    ActivityShareSheet(activityItems: [item.url])
+                }
+                .sheet(isPresented: $showAboutSheet) {
+                    NavigationStack {
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 16) {
+                                Text(aboutAttributedText)
+                                    .padding(.top, 8)
+                                    .font(.body)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .padding(16)
+                        }
+                        .navigationTitle(L10n.tr("settings_section_about"))
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                Button(L10n.tr("button_close")) {
+                                    showAboutSheet = false
+                                }
                             }
                         }
                     }
                 }
-            }
-            .fullScreenCover(isPresented: $showTutorial) {
-                TutorialView()
+                .fullScreenCover(isPresented: $showTutorial) {
+                    TutorialView()
+                }
             }
         }
     }

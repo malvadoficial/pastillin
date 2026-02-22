@@ -24,6 +24,7 @@
 "medications_section_scheduled" = "Tratamientos pautados";
 "medications_section_occasional" = "Uso ocasional";
 "medications_section_unspecified" = "No especificado";
+"medications_section_search" = "Buscador";
 "medication_add_type_title" = "Tipo de medicamento";
 "medication_inactive_badge" = "Desactivada";
 "medication_occasional_badge" = "De uso ocasional";
@@ -36,6 +37,18 @@
 "summary_chronic" = "Sin fecha de fin";
 "summary_no_schedule" = "Sin pauta";
 "summary_no_date" = "Sin fecha";
+"unit_day_one" = "día";
+"unit_day_other" = "días";
+"unit_month_one" = "mes";
+"unit_month_other" = "meses";
+"unit_hour_one" = "hora";
+"unit_hour_other" = "horas";
+"recurrence_daily" = "Diaria";
+"recurrence_monthly" = "Mensual";
+"recurrence_hourly" = "Cada hora";
+"recurrence_every_days_format" = "Cada %d días";
+"recurrence_every_months_format" = "Cada %d meses";
+"recurrence_every_hours_format" = "Cada %d horas";
 "recurrence_three_times_daily" = "3 al día";
 
 
@@ -104,6 +117,7 @@
 "detail_status_not_taken_current" = "No Tomado";
 "detail_section_time" = "Hora";
 "detail_label_time_taken" = "Hora tomada";
+"detail_time_unspecified_toggle" = "Hora sin especificar";
 "detail_title" = "Detalle";
 "detail_remove_for_day" = "Eliminar toma";
 "detail_remove_for_day_title" = "Eliminar toma";
@@ -345,5 +359,5 @@
 "today_cart_pending_purchase" = "Pendiente de comprar";
 "today_cart_runs_out_format" = "Se acabará el %@";
 "today_shopping_notice" = "Tienes medicinas próximas a acabarse";
-"medications_search_placeholder" = "Buscar medicamento";
+"medications_search_placeholder" = "Buscar medicamento en el botiquín";
 "medications_search_no_results" = "No se han encontrado medicamentos.";

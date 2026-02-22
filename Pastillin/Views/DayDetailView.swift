@@ -171,44 +171,47 @@ struct DayDetailView: View {
         let dayLogs = logs.filter { cal.isDate($0.dateKey, inSameDayAs: dayKey) }
         let medsByID = Dictionary(uniqueKeysWithValues: medications.map { ($0.id, $0) })
 
-        if !dayIntakes.isEmpty {
-            let sortedIntakes = dayIntakes.sorted { lhs, rhs in
-                let lm = medsByID[lhs.medicationID]
-                let rm = medsByID[rhs.medicationID]
-                let lo = lm?.sortOrder ?? 0
-                let ro = rm?.sortOrder ?? 0
-                if lo != ro { return lo < ro }
-                if lm?.name != rm?.name {
-                    return (lm?.name ?? "").localizedCaseInsensitiveCompare(rm?.name ?? "") == .orderedAscending
-                }
-                return lhs.scheduledAt < rhs.scheduledAt
+        let sortedIntakes = dayIntakes.sorted { lhs, rhs in
+            let lm = medsByID[lhs.medicationID]
+            let rm = medsByID[rhs.medicationID]
+            let lo = lm?.sortOrder ?? 0
+            let ro = rm?.sortOrder ?? 0
+            if lo != ro { return lo < ro }
+            if lm?.name != rm?.name {
+                return (lm?.name ?? "").localizedCaseInsensitiveCompare(rm?.name ?? "") == .orderedAscending
+            }
+            return lhs.scheduledAt < rhs.scheduledAt
+        }
+
+        let intakeIDs = Set(dayIntakes.map(\.id))
+        var rows: [DayRow] = sortedIntakes.compactMap { intake in
+            guard let med = medsByID[intake.medicationID] else { return nil }
+            let log = dayLogs.first(where: { $0.intakeID == intake.id })
+                ?? dayLogs.first(where: { $0.intakeID == nil && $0.medicationID == med.id })
+            guard let log else { return nil }
+            return DayRow(id: intake.id, med: med, log: log, intake: intake)
+        }
+
+        let orphanLogs = dayLogs.filter { log in
+            guard let intakeID = log.intakeID else { return true }
+            return !intakeIDs.contains(intakeID)
+        }
+
+        let orphanMeds = Set(orphanLogs.map(\.medicationID))
+            .compactMap { medsByID[$0] }
+            .sorted {
+                let o0 = $0.sortOrder ?? 0
+                let o1 = $1.sortOrder ?? 0
+                if o0 != o1 { return o0 < o1 }
+                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
             }
 
-            return sortedIntakes.compactMap { intake in
-                guard let med = medsByID[intake.medicationID] else { return nil }
-                let log = dayLogs.first(where: { $0.intakeID == intake.id })
-                    ?? dayLogs.first(where: { $0.medicationID == med.id })
-                guard let log else { return nil }
-                return DayRow(id: intake.id, med: med, log: log, intake: intake)
-            }
+        for med in orphanMeds {
+            guard let log = orphanLogs.first(where: { $0.medicationID == med.id }) else { continue }
+            rows.append(DayRow(id: log.id, med: med, log: log, intake: nil))
         }
 
-        let legacyOccasionalLogs = dayLogs.filter { log in
-            guard let med = medsByID[log.medicationID] else { return false }
-            return med.kind == .occasional
-        }
-
-        let medsToShow = Set(legacyOccasionalLogs.map(\.medicationID)).compactMap { medsByID[$0] }.sorted {
-            let o0 = $0.sortOrder ?? 0
-            let o1 = $1.sortOrder ?? 0
-            if o0 != o1 { return o0 < o1 }
-            return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-        }
-
-        return medsToShow.compactMap { med in
-            guard let log = legacyOccasionalLogs.first(where: { $0.medicationID == med.id }) else { return nil }
-            return DayRow(id: log.id, med: med, log: log, intake: nil)
-        }
+        return rows
     }
 
     private func slotLabel(for row: DayRow) -> String? {

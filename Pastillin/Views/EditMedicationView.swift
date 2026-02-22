@@ -13,6 +13,7 @@ struct EditMedicationView: View {
     let creationKind: MedicationKind?
     let markTakenNowOnCreate: Bool
     let initialStartDate: Date?
+    let overrideStartDateOnEdit: Date?
     let prefill: MedicationPrefillData?
     let openedFromCabinet: Bool
 
@@ -77,7 +78,7 @@ struct EditMedicationView: View {
     }
     private var isOccasionalForm: Bool { effectiveKind == .occasional }
     private var canChooseKindOnCreate: Bool {
-        if medication == nil { return true }
+        if medication == nil { return isActive }
         return medication?.kind == .unspecified && isActive
     }
     private var isAutocompleteEnabled: Bool { appSettings.first?.medicationAutocompleteEnabled ?? true }
@@ -107,6 +108,7 @@ struct EditMedicationView: View {
         creationKind: MedicationKind? = nil,
         markTakenNowOnCreate: Bool = false,
         initialStartDate: Date? = nil,
+        overrideStartDateOnEdit: Date? = nil,
         prefill: MedicationPrefillData? = nil,
         openedFromCabinet: Bool = false
     ) {
@@ -114,6 +116,7 @@ struct EditMedicationView: View {
         self.creationKind = creationKind
         self.markTakenNowOnCreate = markTakenNowOnCreate
         self.initialStartDate = initialStartDate
+        self.overrideStartDateOnEdit = overrideStartDateOnEdit
         self.prefill = prefill
         self.openedFromCabinet = openedFromCabinet
         self._selectedCreationKind = State(initialValue: creationKind ?? .scheduled)
@@ -488,11 +491,13 @@ struct EditMedicationView: View {
                         Button(L10n.tr("button_cancel")) { dismiss() }
                     }
                     ToolbarItemGroup(placement: .topBarTrailing) {
-                        Button {
-                            selectedTab = .cart
-                            dismiss()
-                        } label: {
-                            ShoppingCartIconView(count: shoppingCartCount)
+                        if shoppingCartCount > 0 {
+                            Button {
+                                selectedTab = .cart
+                                dismiss()
+                            } label: {
+                                ShoppingCartIconView(count: shoppingCartCount)
+                            }
                         }
 
                         Button(L10n.tr("button_save")) { onSaveTapped() }
@@ -773,6 +778,18 @@ struct EditMedicationView: View {
             threeTimesDaily = med.threeTimesDaily
             if let configuredStartDate = med.startDateRaw {
                 startDate = configuredStartDate
+            }
+            if let overrideStartDateOnEdit {
+                let cal = Calendar.current
+                if med.repeatUnit == .hour {
+                    let hm = cal.dateComponents([.hour, .minute], from: startDate)
+                    var comps = cal.dateComponents([.year, .month, .day], from: cal.startOfDay(for: overrideStartDateOnEdit))
+                    comps.hour = hm.hour
+                    comps.minute = hm.minute
+                    startDate = cal.date(from: comps) ?? cal.startOfDay(for: overrideStartDateOnEdit)
+                } else {
+                    startDate = cal.startOfDay(for: overrideStartDateOnEdit)
+                }
             }
             occasionalReminderEnabled = med.occasionalReminderEnabled
             let h = med.occasionalReminderHour ?? 9

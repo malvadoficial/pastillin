@@ -164,20 +164,23 @@ struct MedicationLogDetailView: View {
 
                 if log.isTaken {
                     Section(L10n.tr("detail_section_time")) {
-                        // La hora solo se puede editar si está tomado
-                        DatePicker(
-                            L10n.tr("detail_label_time_taken"),
-                            selection: takenAtBinding,
-                            displayedComponents: [.hourAndMinute]
-                        )
-
-                        Button {
-                            clearTakenTime()
-                        } label: {
-                            Label(L10n.tr("button_clear"), systemImage: "xmark.circle")
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                        HStack {
+                            Text(L10n.tr("detail_label_time_taken"))
+                            Spacer()
+                            if log.takenAt == nil {
+                                Text("--")
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                DatePicker(
+                                    "",
+                                    selection: takenAtBinding,
+                                    displayedComponents: [.hourAndMinute]
+                                )
+                                .labelsHidden()
+                            }
                         }
-                        .buttonStyle(.plain)
+
+                        Toggle(L10n.tr("detail_time_unspecified_toggle"), isOn: takenTimeUnspecifiedBinding)
                     }
                 }
 
@@ -222,10 +225,12 @@ struct MedicationLogDetailView: View {
                     Button(L10n.tr("button_close")) { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        requestCartOpen()
-                    } label: {
-                        ShoppingCartIconView(count: shoppingCartCount)
+                    if shoppingCartCount > 0 {
+                        Button {
+                            requestCartOpen()
+                        } label: {
+                            ShoppingCartIconView(count: shoppingCartCount)
+                        }
                     }
                 }
             }
@@ -382,11 +387,25 @@ struct MedicationLogDetailView: View {
         )
     }
 
-    private func clearTakenTime() {
-        guard log.isTaken else { return }
-        log.takenAt = nil
-        try? modelContext.save()
-        NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
+    private var takenTimeUnspecifiedBinding: Binding<Bool> {
+        Binding(
+            get: { log.takenAt == nil },
+            set: { unspecified in
+                if unspecified {
+                    log.takenAt = nil
+                } else if log.takenAt == nil {
+                    let cal = Calendar.current
+                    let isToday = cal.isDateInToday(dayKey)
+                    if isToday {
+                        log.takenAt = Date()
+                    } else {
+                        log.takenAt = cal.date(bySettingHour: 12, minute: 0, second: 0, of: dayKey) ?? dayKey
+                    }
+                }
+                try? modelContext.save()
+                NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
+            }
+        )
     }
 
     // MARK: - Helpers

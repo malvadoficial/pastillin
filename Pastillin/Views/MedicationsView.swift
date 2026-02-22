@@ -8,6 +8,7 @@ struct MedicationsView: View {
     @Query private var logs: [IntakeLog]
     @Query private var intakes: [Intake]
     @AppStorage("selectedTab") private var selectedTab: AppTab = .medications
+    @AppStorage("medicationsReselectToken") private var medicationsReselectToken: Int = 0
     @AppStorage("lastTabBeforeNoTaken") private var lastTabBeforeNoTakenRaw: String = AppTab.medications.rawValue
     @AppStorage("shoppingCartDisclaimerShown") private var shoppingCartDisclaimerShown: Bool = false
 
@@ -18,6 +19,10 @@ struct MedicationsView: View {
     @State private var pendingOpenCart = false
     @State private var listEditMode: EditMode = .inactive
     @State private var searchText: String = ""
+    @State private var isSearchExpanded = false
+    @State private var isScheduledExpanded = true
+    @State private var isOccasionalExpanded = true
+    @State private var isUnspecifiedExpanded = true
 
     private struct OccasionalGroup: Identifiable {
         let id: String
@@ -35,8 +40,13 @@ struct MedicationsView: View {
         NavigationStack {
             medicationsList
             .onAppear {
+                isSearchExpanded = false
                 deactivateFinishedScheduledMedicationsIfNeeded()
                 normalizeSortOrderIfNeeded()
+            }
+            .onChange(of: medicationsReselectToken) { _, _ in
+                guard selectedTab == .medications else { return }
+                isSearchExpanded = false
             }
             .fullScreenCover(isPresented: $showingCreateMedicationSheet) {
                 EditMedicationView(medication: nil)
@@ -57,6 +67,8 @@ struct MedicationsView: View {
 
     private var medicationsList: some View {
         List {
+            searchSection
+
             if medications.isEmpty {
                 EmptyMedicinesStateView()
                     .listRowBackground(Color.clear)
@@ -69,59 +81,114 @@ struct MedicationsView: View {
                 unspecifiedSection
             }
         }
+        .id("medications_list_\(medicationsReselectToken)")
         .textSelection(.enabled)
+        .listSectionSpacing(2)
         .safeAreaPadding(.bottom, 84)
         .environment(\.editMode, $listEditMode)
         .navigationTitle(L10n.tr("medications_title"))
-        .navigationBarTitleDisplayMode(.large)
-        .searchable(
-            text: $searchText,
-            placement: .navigationBarDrawer(displayMode: .automatic),
-            prompt: L10n.tr("medications_search_placeholder")
-        )
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar { toolbarContent }
+    }
+
+    private var searchSection: some View {
+        Section {
+            if isSearchExpanded {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField(L10n.tr("medications_search_placeholder"), text: $searchText)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                }
+                .listRowInsets(EdgeInsets(top: 0, leading: 14, bottom: 0, trailing: 14))
+            }
+        } header: {
+            collapsibleHeader(
+                title: L10n.tr("medications_section_search"),
+                isExpanded: $isSearchExpanded,
+                color: AppTheme.brandBlue
+            )
+        }
     }
 
     private var scheduledSection: some View {
         Section {
-            ForEach(scheduledMeds) { med in
-                medicationRow(med)
+            if isScheduledExpanded {
+                ForEach(scheduledMeds) { med in
+                    medicationRow(med)
+                }
+                .onDelete { delete($0, in: scheduledMeds) }
+                .onMove { move(from: $0, to: $1, in: .scheduled) }
             }
-            .onDelete { delete($0, in: scheduledMeds) }
-            .onMove { move(from: $0, to: $1, in: .scheduled) }
         } header: {
-            Text(L10n.tr("medications_section_scheduled"))
-                .foregroundStyle(AppTheme.brandYellow)
+            collapsibleHeader(
+                title: L10n.tr("medications_section_scheduled"),
+                isExpanded: $isScheduledExpanded
+            )
         }
     }
 
     private var occasionalSection: some View {
         Section {
-            ForEach(occasionalGroups) { group in
-                medicationRow(group.representative)
+            if isOccasionalExpanded {
+                ForEach(occasionalGroups) { group in
+                    medicationRow(group.representative)
+                }
+                .onDelete(perform: deleteOccasionalGroups)
+                .onMove(perform: moveOccasionalGroups)
             }
-            .onDelete(perform: deleteOccasionalGroups)
-            .onMove(perform: moveOccasionalGroups)
         } header: {
-            Text(L10n.tr("medications_section_occasional"))
-                .foregroundStyle(AppTheme.brandYellow)
+            collapsibleHeader(
+                title: L10n.tr("medications_section_occasional"),
+                isExpanded: $isOccasionalExpanded
+            )
         }
     }
 
     private var unspecifiedSection: some View {
         Section {
-            ForEach(unspecifiedMeds) { med in
-                medicationRow(med)
+            if isUnspecifiedExpanded {
+                ForEach(unspecifiedMeds) { med in
+                    medicationRow(med)
+                }
+                .onDelete { delete($0, in: unspecifiedMeds) }
             }
-            .onDelete { delete($0, in: unspecifiedMeds) }
         } header: {
-            Text(L10n.tr("medications_section_unspecified"))
-                .foregroundStyle(AppTheme.brandYellow)
+            collapsibleHeader(
+                title: L10n.tr("medications_section_unspecified"),
+                isExpanded: $isUnspecifiedExpanded
+            )
         }
+    }
+
+    @ViewBuilder
+    private func collapsibleHeader(title: String, isExpanded: Binding<Bool>, color: Color = AppTheme.brandYellow) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                isExpanded.wrappedValue.toggle()
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: isExpanded.wrappedValue ? "chevron.down" : "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(color)
+                Text(title)
+                    .foregroundStyle(color)
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .principal) {
+            NavigationTitleWithIcon(
+                title: L10n.tr("medications_title"),
+                systemImage: "pills",
+                color: AppTheme.brandYellow
+            )
+        }
         ToolbarItemGroup(placement: .topBarLeading) {
             Button {
                 withAnimation {
@@ -133,22 +200,26 @@ struct MedicationsView: View {
             .foregroundStyle(AppTheme.brandYellow)
             .accessibilityLabel(L10n.tr("button_edit"))
 
-            Button {
-                lastTabBeforeNoTakenRaw = AppTab.medications.rawValue
-                selectedTab = .noTaken
-            } label: {
-                PendingIntakesIconView(count: pendingCount)
+            if pendingCount > 0 {
+                Button {
+                    lastTabBeforeNoTakenRaw = AppTab.medications.rawValue
+                    selectedTab = .noTaken
+                } label: {
+                    PendingIntakesIconView(count: pendingCount)
+                }
+                .foregroundStyle(AppTheme.brandYellow)
+                .accessibilityLabel(L10n.tr("tab_not_taken"))
             }
-            .foregroundStyle(AppTheme.brandYellow)
-            .accessibilityLabel(L10n.tr("tab_not_taken"))
         }
         ToolbarItemGroup(placement: .topBarTrailing) {
-            Button {
-                requestCartOpen()
-            } label: {
-                ShoppingCartIconView(count: shoppingCartCount)
+            if shoppingCartCount > 0 {
+                Button {
+                    requestCartOpen()
+                } label: {
+                    ShoppingCartIconView(count: shoppingCartCount)
+                }
+                .foregroundStyle(AppTheme.brandYellow)
             }
-            .foregroundStyle(AppTheme.brandYellow)
 
             Button { showingCreateMedicationSheet = true } label: { Image(systemName: "plus") }
                 .foregroundStyle(AppTheme.brandYellow)
@@ -282,7 +353,7 @@ struct MedicationsView: View {
             } label: {
                 Image(systemName: med.inShoppingCart ? "cart.fill" : "cart.badge.plus")
                     .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(AppTheme.brandYellow)
+                    .foregroundStyle(med.inShoppingCart ? AppTheme.brandRed : AppTheme.brandYellow)
             }
             .buttonStyle(.plain)
         }
