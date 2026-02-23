@@ -46,7 +46,7 @@ struct LegalDisclaimerView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
             }
-            .safeAreaPadding(.bottom, 84)
+            .bottomBarSafeScrollPadding()
             .navigationTitle(L10n.tr("legal_disclaimer_title"))
             .navigationBarTitleDisplayMode(.inline)
         }

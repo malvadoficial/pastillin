@@ -84,7 +84,7 @@ struct MedicationsView: View {
         .id("medications_list_\(medicationsReselectToken)")
         .textSelection(.enabled)
         .listSectionSpacing(8)
-        .safeAreaPadding(.bottom, 84)
+        .bottomBarSafeScrollPadding()
         .environment(\.editMode, $listEditMode)
         .navigationTitle(L10n.tr("medications_title"))
         .navigationBarTitleDisplayMode(.inline)

@@ -86,7 +86,7 @@ struct NoTakenView: View {
             }
         }
         .textSelection(.enabled)
-        .safeAreaPadding(.bottom, 84)
+        .bottomBarSafeScrollPadding()
         .overlay {
             if let row = selectedRow {
                 MissedIntakeActionsOverlay(

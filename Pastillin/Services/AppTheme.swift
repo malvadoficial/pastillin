@@ -10,4 +10,13 @@ enum AppTheme {
     // Colores de apoyo (20%)
     static let supportWhite = Color.white
     static let supportBlack = Color.black
+
+    // Espacio reservado para que el contenido con scroll no quede bajo la barra inferior global.
+    static let bottomBarOverlayPadding: CGFloat = 84
+}
+
+extension View {
+    func bottomBarSafeScrollPadding() -> some View {
+        safeAreaPadding(.bottom, AppTheme.bottomBarOverlayPadding)
+    }
 }

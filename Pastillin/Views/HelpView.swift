@@ -50,7 +50,7 @@ struct HelpView: View {
             }
         }
         .textSelection(.enabled)
-        .safeAreaPadding(.bottom, 84)
+        .bottomBarSafeScrollPadding()
         .navigationTitle(L10n.tr("help_title"))
         .navigationBarTitleDisplayMode(.inline)
     }

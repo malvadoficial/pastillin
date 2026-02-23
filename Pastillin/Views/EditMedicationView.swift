@@ -485,6 +485,7 @@ struct EditMedicationView: View {
             .navigationTitle(titleText)
             .navigationBarTitleDisplayMode(.inline)
             .scrollDismissesKeyboard(.interactively)
+            .bottomBarSafeScrollPadding()
             .toolbar {
                 if !showPickerSheet {
                     ToolbarItem(placement: .topBarLeading) {

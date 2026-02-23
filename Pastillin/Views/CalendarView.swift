@@ -118,7 +118,7 @@ struct CalendarView: View {
                     ScrollView {
                         compactListForSelectedDay(day)
                             .padding(.top, isCompactLayout ? 6 : 10)
-                            .padding(.bottom, 84)
+                            .padding(.bottom, AppTheme.bottomBarOverlayPadding)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 } else {

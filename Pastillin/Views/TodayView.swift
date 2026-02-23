@@ -117,7 +117,7 @@ struct TodayView: View {
                 }
                 .textSelection(.enabled)
                 .listStyle(.plain)
-                .safeAreaPadding(.bottom, 84)
+                .bottomBarSafeScrollPadding()
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

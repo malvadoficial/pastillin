@@ -205,7 +205,7 @@ struct SettingsView: View {
                         }
                     }
                 }
-                .safeAreaPadding(.bottom, 84)
+                .bottomBarSafeScrollPadding()
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .principal) {

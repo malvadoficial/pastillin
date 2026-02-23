@@ -219,6 +219,7 @@ struct MedicationLogDetailView: View {
                 }
             }
             .textSelection(.enabled)
+            .bottomBarSafeScrollPadding()
             .navigationTitle(L10n.tr("detail_title"))
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
