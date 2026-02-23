@@ -1,6 +1,6 @@
 //
 //  MedicationLogDetailView.swift
-//  MediRecord
+//  Pastillin
 //
 //  Created by José Manuel Rives on 11/2/26.
 //

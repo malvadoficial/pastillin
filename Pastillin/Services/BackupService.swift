@@ -9,7 +9,7 @@ enum BackupService {
         encoder.dateEncodingStrategy = .iso8601
 
         let data = try encoder.encode(payload)
-        let filename = "MediRecordBackup_\(Int(Date().timeIntervalSince1970)).json"
+        let filename = "PastillinBackup_\(Int(Date().timeIntervalSince1970)).json"
         let outURL = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
         try data.write(to: outURL, options: .atomic)
         return outURL

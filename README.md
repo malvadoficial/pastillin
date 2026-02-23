@@ -13,12 +13,13 @@ Pastillín es una app para organizar medicación diaria de forma sencilla:
 
 ## Estado actual
 
-- Versión en desarrollo: `1.5`
+- Versión en desarrollo: `1.6`
 - Plataforma principal: iOS / iPadOS
 - Última release publicada: [`v1.5.3`](https://github.com/malvadoficial/pastillin/releases/tag/v1.5.3)
 
 ## Release Notes
 
+- [`v1.6.0` (en preparación)](docs/releases/v1.6.0.md)
 - [`v1.5.3`](docs/releases/v1.5.3.md)
 
 ## Privacidad
