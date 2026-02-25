@@ -17,6 +17,14 @@ enum L10n {
         value == 1 ? tr("unit_month_one") : tr("unit_month_other")
     }
 
+    static func unitHour(_ value: Int) -> String {
+        value == 1 ? tr("unit_hour_one") : tr("unit_hour_other")
+    }
+
+    static func unitWeek(_ value: Int) -> String {
+        value == 1 ? tr("unit_week_one") : tr("unit_week_other")
+    }
+
     static func recurrenceText(repeatUnit: RepeatUnit, interval: Int) -> String {
         let safeInterval = max(1, interval)
 
@@ -24,9 +32,15 @@ enum L10n {
         case .day:
             if safeInterval == 1 { return tr("recurrence_daily") }
             return String(format: tr("recurrence_every_days_format"), safeInterval)
+        case .week:
+            if safeInterval == 1 { return tr("recurrence_weekly") }
+            return String(format: tr("recurrence_every_weeks_format"), safeInterval)
         case .month:
             if safeInterval == 1 { return tr("recurrence_monthly") }
             return String(format: tr("recurrence_every_months_format"), safeInterval)
+        case .hour:
+            if safeInterval == 1 { return tr("recurrence_hourly") }
+            return String(format: tr("recurrence_every_hours_format"), safeInterval)
         }
     }
 }

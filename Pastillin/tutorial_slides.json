@@ -1,0 +1,87 @@
+[
+  {
+    "id": "tutorial_intro",
+    "imageName": "SplashPortrait",
+    "textKey": "tutorial_v2_intro"
+  },
+  {
+    "id": "tutorial_1",
+    "imageName": "Tutorial1",
+    "textKey": "tutorial_v2_step_1"
+  },
+  {
+    "id": "tutorial_1a",
+    "imageName": "Tutorial1a",
+    "textKey": "tutorial_v2_step_2"
+  },
+  {
+    "id": "tutorial_1b",
+    "imageName": "Tutorial1b",
+    "textKey": "tutorial_v2_step_3"
+  },
+  {
+    "id": "tutorial_3",
+    "imageName": "Tutorial3",
+    "textKey": "tutorial_v2_step_4"
+  },
+  {
+    "id": "tutorial_4",
+    "imageName": "Tutorial4",
+    "textKey": "tutorial_v2_step_5"
+  },
+  {
+    "id": "tutorial_5",
+    "imageName": "Tutorial5",
+    "textKey": "tutorial_v2_step_6"
+  },
+  {
+    "id": "tutorial_6",
+    "imageName": "Tutorial6",
+    "textKey": "tutorial_v2_step_7"
+  },
+  {
+    "id": "tutorial_6a",
+    "imageName": "Tutorial6a",
+    "textKey": "tutorial_v2_step_8"
+  },
+  {
+    "id": "tutorial_7",
+    "imageName": "Tutorial7",
+    "textKey": "tutorial_v2_step_9"
+  },
+  {
+    "id": "tutorial_8",
+    "imageName": "Tutorial8",
+    "textKey": "tutorial_v2_step_10"
+  },
+  {
+    "id": "tutorial_9",
+    "imageName": "Tutorial9",
+    "textKey": "tutorial_v2_step_11"
+  },
+  {
+    "id": "tutorial_10",
+    "imageName": "Tutorial10",
+    "textKey": "tutorial_v2_step_12"
+  },
+  {
+    "id": "tutorial_10a",
+    "imageName": "Tutorial10a",
+    "textKey": "tutorial_v2_step_13"
+  },
+  {
+    "id": "tutorial_11",
+    "imageName": "Tutorial11",
+    "textKey": "tutorial_v2_step_14"
+  },
+  {
+    "id": "tutorial_11a",
+    "imageName": "Tutorial11a",
+    "textKey": "tutorial_v2_step_15"
+  },
+  {
+    "id": "tutorial_outro",
+    "imageName": "SplashPortrait",
+    "textKey": "tutorial_v2_outro"
+  }
+]

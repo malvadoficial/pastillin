@@ -1,27 +1,37 @@
 //
 //  Models.swift
-//  MediRecord
+//  Pastillin
 //
 //  Created by José Manuel Rives on 11/2/26.
 //
 
 import Foundation
 import SwiftData
+import SwiftUI
+import UIKit
 
 enum RepeatUnit: Int, Codable {
-    case day
-    case month
+    case day = 0
+    case month = 1
+    case hour = 2
+    case week = 3
 }
 
 enum MedicationKind: Int, Codable {
     case scheduled
     case occasional
+    case unspecified
 }
 
 enum UIAppearanceMode: Int, Codable, CaseIterable {
     case system
     case light
     case dark
+}
+
+enum IntakeSource: Int, Codable {
+    case scheduled
+    case manual
 }
 
 @Model
@@ -40,6 +50,9 @@ final class Medication {
     var shoppingCartSortOrderRaw: Int?
     var shoppingCartExpectedEndDate: Date?
     var shoppingCartRemainingDosesRaw: Int?
+    var nameColorRedRaw: Double?
+    var nameColorGreenRaw: Double?
+    var nameColorBlueRaw: Double?
 
     // Foto (opcional)
     var photoData: Data?
@@ -53,8 +66,9 @@ final class Medication {
     var occasionalReminderHour: Int?
     var occasionalReminderMinute: Int?
     var skippedDateKeysRaw: [Double]?
+    var threeTimesDailyRaw: Bool?
     var repeatUnitRaw: Int
-    var interval: Int                // 1 = cada día / cada mes
+    var interval: Int                // 1 = cada día/semana/mes u hora
     var startDateRaw: Date?          // ancla (puede faltar en medicación inactiva)
     var endDate: Date?               // último día incluido
 
@@ -79,6 +93,7 @@ final class Medication {
         self.occasionalReminderHour = nil
         self.occasionalReminderMinute = nil
         self.skippedDateKeysRaw = []
+        self.threeTimesDailyRaw = false
         self.repeatUnitRaw = repeatUnit.rawValue
         self.interval = max(1, interval)
         self.startDateRaw = startDate
@@ -87,11 +102,19 @@ final class Medication {
         self.shoppingCartSortOrderRaw = nil
         self.shoppingCartExpectedEndDate = nil
         self.shoppingCartRemainingDosesRaw = nil
+        self.nameColorRedRaw = nil
+        self.nameColorGreenRaw = nil
+        self.nameColorBlueRaw = nil
     }
 
     var repeatUnit: RepeatUnit {
         get { RepeatUnit(rawValue: repeatUnitRaw) ?? .day }
         set { repeatUnitRaw = newValue.rawValue }
+    }
+
+    var threeTimesDaily: Bool {
+        get { threeTimesDailyRaw ?? false }
+        set { threeTimesDailyRaw = newValue }
     }
 
     var startDate: Date {
@@ -140,6 +163,16 @@ final class Medication {
         guard kind == .scheduled else { return nil }
         guard let remainingDoses = shoppingCartRemainingDoses, remainingDoses > 0 else { return nil }
 
+        if repeatUnit == .hour {
+            let stepHours = max(1, interval)
+            let finishMoment = referenceDate.addingTimeInterval(TimeInterval(stepHours * max(remainingDoses - 1, 0) * 3600))
+            if let endDate {
+                let endLimit = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: endDate)) ?? endDate
+                if finishMoment > endLimit { return nil }
+            }
+            return calendar.startOfDay(for: finishMoment)
+        }
+
         var day = calendar.startOfDay(for: referenceDate)
         var dosesLeft = remainingDoses
         let maxIterations = 365 * 20
@@ -181,32 +214,61 @@ final class Medication {
     func isDue(on dateKey: Date, calendar: Calendar = .current) -> Bool {
         guard let configuredStartDate = startDateRaw else { return false }
         let startKey = calendar.startOfDay(for: configuredStartDate)
-        if dateKey < startKey { return false }
+        let dayKey = calendar.startOfDay(for: dateKey)
+        let nextDay = calendar.date(byAdding: .day, value: 1, to: dayKey) ?? dayKey
+        if dayKey < startKey && kind != .scheduled { return false }
 
         if kind == .occasional {
-            return calendar.isDate(startKey, inSameDayAs: dateKey)
+            return calendar.isDate(startKey, inSameDayAs: dayKey)
         }
 
-        if isSkipped(on: dateKey, calendar: calendar) {
+        if isSkipped(on: dayKey, calendar: calendar) {
             return false
+        }
+
+        if repeatUnit == .hour {
+            let step = TimeInterval(max(1, interval) * 3600)
+            if nextDay <= configuredStartDate { return false }
+            if let endDate {
+                let endLimit = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: endDate)) ?? endDate
+                if dayKey >= endLimit { return false }
+            }
+
+            let delta = dayKey.timeIntervalSince(configuredStartDate)
+            let firstIndex = max(0, Int(ceil(delta / step)))
+            let firstOccurrence = configuredStartDate.addingTimeInterval(TimeInterval(firstIndex) * step)
+            if firstOccurrence >= nextDay { return false }
+
+            if let endDate {
+                let endLimit = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: endDate)) ?? endDate
+                return firstOccurrence < endLimit
+            }
+            return true
         }
 
         if let endDate {
             let endKey = calendar.startOfDay(for: endDate)
-            if dateKey > endKey { return false } // fin inclusiva
+            if dayKey > endKey { return false } // fin inclusiva
         }
 
         let n = max(1, interval)
 
         switch repeatUnit {
         case .day:
-            let diffDays = calendar.dateComponents([.day], from: startKey, to: dateKey).day ?? 0
+            let diffDays = calendar.dateComponents([.day], from: startKey, to: dayKey).day ?? 0
             return diffDays % n == 0
+
+        case .week:
+            let diffDays = calendar.dateComponents([.day], from: startKey, to: dayKey).day ?? 0
+            if diffDays < 0 { return false }
+            if diffDays % 7 != 0 { return false }
+            let diffWeeks = diffDays / 7
+            return diffWeeks % n == 0
 
         case .month:
             // meses entre start y dateKey (ignorando día)
             let startComp = calendar.dateComponents([.year, .month, .day], from: startKey)
-            let dateComp  = calendar.dateComponents([.year, .month, .day], from: dateKey)
+            let dateComp  = calendar.dateComponents([.year, .month, .day], from: dayKey)
 
             guard let sy = startComp.year, let sm = startComp.month,
                   let dy = dateComp.year, let dm = dateComp.month else { return false }
@@ -218,7 +280,9 @@ final class Medication {
             // día objetivo = día del startDate (clamp a fin de mes si no existe)
             let targetDay = startComp.day ?? 1
             let scheduled = Self.scheduledDateFor(year: dy, month: dm, day: targetDay, calendar: calendar)
-            return calendar.isDate(scheduled, inSameDayAs: dateKey)
+            return calendar.isDate(scheduled, inSameDayAs: dayKey)
+        case .hour:
+            return false
         }
     }
 
@@ -233,22 +297,97 @@ final class Medication {
         comps.day = clampedDay
         return calendar.startOfDay(for: calendar.date(from: comps) ?? firstOfMonth)
     }
+
+    var hasCustomNameColor: Bool {
+        nameColorRedRaw != nil && nameColorGreenRaw != nil && nameColorBlueRaw != nil
+    }
+
+    var displayNameColor: Color {
+        guard let red = nameColorRedRaw,
+              let green = nameColorGreenRaw,
+              let blue = nameColorBlueRaw else {
+            return .primary
+        }
+        return Color(
+            red: Self.clampedColorComponent(red),
+            green: Self.clampedColorComponent(green),
+            blue: Self.clampedColorComponent(blue)
+        )
+    }
+
+    func setCustomNameColor(_ color: Color?) {
+        guard let color else {
+            nameColorRedRaw = nil
+            nameColorGreenRaw = nil
+            nameColorBlueRaw = nil
+            return
+        }
+
+        let uiColor = UIColor(color)
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        let extracted = uiColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        guard extracted else {
+            nameColorRedRaw = nil
+            nameColorGreenRaw = nil
+            nameColorBlueRaw = nil
+            return
+        }
+        nameColorRedRaw = Self.clampedColorComponent(Double(red))
+        nameColorGreenRaw = Self.clampedColorComponent(Double(green))
+        nameColorBlueRaw = Self.clampedColorComponent(Double(blue))
+    }
+
+    private static func clampedColorComponent(_ value: Double) -> Double {
+        min(max(value, 0), 1)
+    }
 }
 
 @Model
 final class IntakeLog {
     @Attribute(.unique) var id: UUID
     var medicationID: UUID
+    var intakeID: UUID?
     var dateKey: Date               // startOfDay
     var isTaken: Bool               // false = no tomada, true = tomada
     var takenAt: Date?              // hora real si tomada
 
-    init(medicationID: UUID, dateKey: Date, isTaken: Bool = false, takenAt: Date? = nil) {
+    init(medicationID: UUID, intakeID: UUID? = nil, dateKey: Date, isTaken: Bool = false, takenAt: Date? = nil) {
         self.id = UUID()
         self.medicationID = medicationID
+        self.intakeID = intakeID
         self.dateKey = dateKey
         self.isTaken = isTaken
         self.takenAt = takenAt
+    }
+}
+
+@Model
+final class Intake {
+    @Attribute(.unique) var id: UUID
+    var medicationID: UUID
+    var scheduledAt: Date
+    var sourceRaw: Int
+    var createdAt: Date
+
+    init(
+        medicationID: UUID,
+        scheduledAt: Date,
+        source: IntakeSource = .scheduled,
+        createdAt: Date = Date()
+    ) {
+        self.id = UUID()
+        self.medicationID = medicationID
+        self.scheduledAt = scheduledAt
+        self.sourceRaw = source.rawValue
+        self.createdAt = createdAt
+    }
+
+    var source: IntakeSource {
+        get { IntakeSource(rawValue: sourceRaw) ?? .scheduled }
+        set { sourceRaw = newValue.rawValue }
     }
 }
 

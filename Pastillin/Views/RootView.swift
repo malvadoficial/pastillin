@@ -1,6 +1,6 @@
 //
 //  RootView.swift
-//  MediRecord
+//  Pastillin
 //
 //  Created by José Manuel Rives on 11/2/26.
 //
@@ -12,6 +12,9 @@ import UIKit
 extension Notification.Name {
     static let calendarJumpToToday = Notification.Name("calendarJumpToToday")
     static let intakeLogsDidChange = Notification.Name("intakeLogsDidChange")
+    static let medicationsScrollToTop = Notification.Name("medicationsScrollToTop")
+    static let settingsScrollToTop = Notification.Name("settingsScrollToTop")
+    static let medicationTaken = Notification.Name("medicationTaken")
 }
 
 enum AppTab: String {
@@ -24,15 +27,16 @@ enum AppTab: String {
 }
 
 struct RootView: View {
-    @Environment(\.modelContext) private var modelContext
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage("selectedTab") private var selectedTab: AppTab = .today
+    @AppStorage("didSetInitialTabDefault") private var didSetInitialTabDefault: Bool = false
+    @AppStorage("medicationsReselectToken") private var medicationsReselectToken: Int = 0
+    @AppStorage("legalDisclaimerAccepted") private var legalDisclaimerAccepted = false
     @AppStorage("hasSeenOnboardingTutorial") private var hasSeenOnboardingTutorial = false
-    @AppStorage("showOnboardingTutorialNow") private var showOnboardingTutorialNow = false
-    @AppStorage("tutorialDemoDataCreated") private var tutorialDemoDataCreated = false
-    @AppStorage("tutorialDemoMedicationIDs") private var tutorialDemoMedicationIDsRaw = ""
-    @AppStorage("tutorialDemoCleanupNow") private var tutorialDemoCleanupNow = false
     @Query private var settings: [AppSettings]
+    @Query private var medications: [Medication]
+    @Query private var logs: [IntakeLog]
+    @Query private var intakes: [Intake]
     @State private var showTutorial = false
     
     init() {
@@ -57,9 +61,11 @@ struct RootView: View {
                         .tabItem { Label(L10n.tr("tab_medications"), systemImage: "pills") }
                         .tag(AppTab.medications)
 
-                    ShoppingCartView()
-                        .tabItem { Label(L10n.tr("cart_title"), systemImage: "cart") }
-                        .tag(AppTab.cart)
+                    NavigationStack {
+                        ShoppingCartView()
+                    }
+                    .tabItem { Label(L10n.tr("cart_title"), systemImage: "cart") }
+                    .tag(AppTab.cart)
 
                     SettingsView()
                         .tabItem { Label(L10n.tr("tab_settings"), systemImage: "gearshape") }
@@ -72,38 +78,26 @@ struct RootView: View {
         }
         .preferredColorScheme(preferredColorScheme)
         .onAppear {
-            if !hasSeenOnboardingTutorial {
-                prepareTutorialDemoDataIfNeeded()
-                showTutorial = true
-            }
+            configureInitialTabIfNeeded()
+            evaluateInitialTutorialPresentation()
         }
-        .onChange(of: showOnboardingTutorialNow) { _, newValue in
-            guard newValue else { return }
-            prepareTutorialDemoDataIfNeeded()
-            showTutorial = true
+        .onChange(of: legalDisclaimerAccepted) { _, _ in
+            evaluateInitialTutorialPresentation()
         }
-        .overlay {
-            if showTutorial {
-                TutorialView(
-                    onSelectTab: { tab in
-                        tabSelectionBinding.wrappedValue = tab
-                    },
-                    onFinish: {
-                        hasSeenOnboardingTutorial = true
-                        showOnboardingTutorialNow = false
-                        showTutorial = false
-                        selectedTab = .today
-                        // Solicita limpieza inmediata en SplashGate (desmonta UI antes de borrar).
-                        if tutorialDemoDataCreated {
-                            tutorialDemoCleanupNow = true
-                        }
-                    }
-                )
-                .zIndex(10)
-                .transition(.opacity)
-            }
+        .onChange(of: medications.count) { _, _ in
+            evaluateInitialTutorialPresentation()
         }
-        .animation(.easeInOut(duration: 0.2), value: showTutorial)
+        .onChange(of: logs.count) { _, _ in
+            evaluateInitialTutorialPresentation()
+        }
+        .onChange(of: intakes.count) { _, _ in
+            evaluateInitialTutorialPresentation()
+        }
+        .fullScreenCover(isPresented: $showTutorial, onDismiss: {
+            hasSeenOnboardingTutorial = true
+        }) {
+            TutorialView()
+        }
     }
 
 
@@ -156,7 +150,14 @@ struct RootView: View {
         let tabColor = color(for: tab)
 
         return Button {
-            tabSelectionBinding.wrappedValue = tab
+            if tab == .medications, isSelected {
+                medicationsReselectToken &+= 1
+                NotificationCenter.default.post(name: .medicationsScrollToTop, object: nil)
+            } else if tab == .settings, isSelected {
+                NotificationCenter.default.post(name: .settingsScrollToTop, object: nil)
+            } else {
+                tabSelectionBinding.wrappedValue = tab
+            }
         } label: {
             VStack(spacing: 3) {
                 Image(systemName: systemImage)
@@ -203,18 +204,22 @@ struct RootView: View {
         }
     }
 
-    private func prepareTutorialDemoDataIfNeeded() {
-        guard !hasSeenOnboardingTutorial else { return }
-        guard !tutorialDemoDataCreated else { return }
-
-        let meds = (try? modelContext.fetch(FetchDescriptor<Medication>())) ?? []
-        let logs = (try? modelContext.fetch(FetchDescriptor<IntakeLog>())) ?? []
-        guard meds.isEmpty && logs.isEmpty else { return }
-
-        if let ids = try? TutorialDemoDataService.seed(modelContext: modelContext) {
-            tutorialDemoMedicationIDsRaw = ids.map(\.uuidString).joined(separator: ",")
-            tutorialDemoDataCreated = true
-        }
+    private var shouldAutoPresentTutorial: Bool {
+        legalDisclaimerAccepted &&
+        !hasSeenOnboardingTutorial &&
+        medications.isEmpty &&
+        logs.isEmpty &&
+        intakes.isEmpty
     }
 
+    private func evaluateInitialTutorialPresentation() {
+        guard shouldAutoPresentTutorial else { return }
+        showTutorial = true
+    }
+
+    private func configureInitialTabIfNeeded() {
+        guard !didSetInitialTabDefault else { return }
+        selectedTab = .today
+        didSetInitialTabDefault = true
+    }
 }

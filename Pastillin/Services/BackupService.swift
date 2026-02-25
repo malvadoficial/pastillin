@@ -9,7 +9,7 @@ enum BackupService {
         encoder.dateEncodingStrategy = .iso8601
 
         let data = try encoder.encode(payload)
-        let filename = "MediRecordBackup_\(Int(Date().timeIntervalSince1970)).json"
+        let filename = "PastillinBackup_\(Int(Date().timeIntervalSince1970)).json"
         let outURL = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
         try data.write(to: outURL, options: .atomic)
         return outURL
@@ -42,6 +42,7 @@ enum BackupService {
             med.occasionalReminderHour = m.occasionalReminderHour
             med.occasionalReminderMinute = m.occasionalReminderMinute
             med.skippedDateKeysRaw = m.skippedDateKeysRaw
+            med.threeTimesDailyRaw = m.threeTimesDailyRaw
             med.repeatUnitRaw = m.repeatUnitRaw
             med.startDateRaw = m.startDate
             med.cimaNRegistro = m.cimaNRegistro
@@ -54,6 +55,9 @@ enum BackupService {
             med.shoppingCartSortOrderRaw = m.shoppingCartSortOrderRaw
             med.shoppingCartExpectedEndDate = m.shoppingCartExpectedEndDate
             med.shoppingCartRemainingDosesRaw = m.shoppingCartRemainingDosesRaw
+            med.nameColorRedRaw = m.nameColorRedRaw
+            med.nameColorGreenRaw = m.nameColorGreenRaw
+            med.nameColorBlueRaw = m.nameColorBlueRaw
             modelContext.insert(med)
         }
 
@@ -61,12 +65,26 @@ enum BackupService {
         for l in payload.logs {
             let log = IntakeLog(
                 medicationID: l.medicationID,
+                intakeID: l.intakeID,
                 dateKey: l.dateKey,
                 isTaken: l.isTaken,
                 takenAt: l.takenAt
             )
             log.id = l.id
             modelContext.insert(log)
+        }
+
+        // Restaurar tomas programadas (v2+)
+        for intake in payload.intakes ?? [] {
+            let item = Intake(
+                medicationID: intake.medicationID,
+                scheduledAt: intake.scheduledAt,
+                source: IntakeSource(rawValue: intake.sourceRaw) ?? .scheduled,
+                createdAt: intake.createdAt
+            )
+            item.id = intake.id
+            item.sourceRaw = intake.sourceRaw
+            modelContext.insert(item)
         }
 
         // Restaurar ajustes
@@ -91,8 +109,10 @@ enum BackupService {
     static func clearAllData(modelContext: ModelContext) throws {
         let currentMeds = try modelContext.fetch(FetchDescriptor<Medication>())
         let currentLogs = try modelContext.fetch(FetchDescriptor<IntakeLog>())
+        let currentIntakes = try modelContext.fetch(FetchDescriptor<Intake>())
         let currentSettings = try modelContext.fetch(FetchDescriptor<AppSettings>())
 
+        for item in currentIntakes { modelContext.delete(item) }
         for item in currentLogs { modelContext.delete(item) }
         for item in currentMeds {
             NotificationService.cancelOccasionalReminder(medicationID: item.id)
@@ -119,10 +139,11 @@ enum BackupService {
     private static func buildPayload(modelContext: ModelContext) throws -> BackupPayload {
         let medications = try modelContext.fetch(FetchDescriptor<Medication>())
         let logs = try modelContext.fetch(FetchDescriptor<IntakeLog>())
+        let intakes = try modelContext.fetch(FetchDescriptor<Intake>())
         let settings = try modelContext.fetch(FetchDescriptor<AppSettings>())
 
         return BackupPayload(
-            version: 1,
+            version: 2,
             createdAt: Date(),
             medications: medications.map {
                 BackupMedication(
@@ -137,6 +158,7 @@ enum BackupService {
                     occasionalReminderHour: $0.occasionalReminderHour,
                     occasionalReminderMinute: $0.occasionalReminderMinute,
                     skippedDateKeysRaw: $0.skippedDateKeysRaw,
+                    threeTimesDailyRaw: $0.threeTimesDailyRaw,
                     repeatUnitRaw: $0.repeatUnitRaw,
                     interval: $0.interval,
                     startDate: $0.startDateRaw,
@@ -150,16 +172,29 @@ enum BackupService {
                     inShoppingCartRaw: $0.inShoppingCartRaw,
                     shoppingCartSortOrderRaw: $0.shoppingCartSortOrderRaw,
                     shoppingCartExpectedEndDate: $0.shoppingCartExpectedEndDate,
-                    shoppingCartRemainingDosesRaw: $0.shoppingCartRemainingDosesRaw
+                    shoppingCartRemainingDosesRaw: $0.shoppingCartRemainingDosesRaw,
+                    nameColorRedRaw: $0.nameColorRedRaw,
+                    nameColorGreenRaw: $0.nameColorGreenRaw,
+                    nameColorBlueRaw: $0.nameColorBlueRaw
                 )
             },
             logs: logs.map {
                 BackupLog(
                     id: $0.id,
                     medicationID: $0.medicationID,
+                    intakeID: $0.intakeID,
                     dateKey: $0.dateKey,
                     isTaken: $0.isTaken,
                     takenAt: $0.takenAt
+                )
+            },
+            intakes: intakes.map {
+                BackupIntake(
+                    id: $0.id,
+                    medicationID: $0.medicationID,
+                    scheduledAt: $0.scheduledAt,
+                    sourceRaw: $0.sourceRaw,
+                    createdAt: $0.createdAt
                 )
             },
             settings: settings.first.map {
@@ -181,6 +216,7 @@ private struct BackupPayload: Codable {
     let createdAt: Date
     let medications: [BackupMedication]
     let logs: [BackupLog]
+    let intakes: [BackupIntake]?
     let settings: BackupSettings?
 }
 
@@ -196,6 +232,7 @@ private struct BackupMedication: Codable {
     let occasionalReminderHour: Int?
     let occasionalReminderMinute: Int?
     let skippedDateKeysRaw: [Double]?
+    let threeTimesDailyRaw: Bool?
     let repeatUnitRaw: Int
     let interval: Int
     let startDate: Date?
@@ -210,14 +247,26 @@ private struct BackupMedication: Codable {
     let shoppingCartSortOrderRaw: Int?
     let shoppingCartExpectedEndDate: Date?
     let shoppingCartRemainingDosesRaw: Int?
+    let nameColorRedRaw: Double?
+    let nameColorGreenRaw: Double?
+    let nameColorBlueRaw: Double?
 }
 
 private struct BackupLog: Codable {
     let id: UUID
     let medicationID: UUID
+    let intakeID: UUID?
     let dateKey: Date
     let isTaken: Bool
     let takenAt: Date?
+}
+
+private struct BackupIntake: Codable {
+    let id: UUID
+    let medicationID: UUID
+    let scheduledAt: Date
+    let sourceRaw: Int
+    let createdAt: Date
 }
 
 private struct BackupSettings: Codable {
