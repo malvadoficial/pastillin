@@ -11,6 +11,10 @@
 "today_title" = "Hoy";
 "taken_fem" = "Tomada";
 "not_taken_fem" = "No tomada";
+"today_mark_all_taken_button" = "Marcar todo como tomado";
+"today_mark_all_taken_confirm_title" = "Marcar todas como tomadas";
+"today_mark_all_taken_confirm_message" = "Esta acción marcará todas las tomas visibles como tomadas. ¿Quieres continuar?";
+"today_mark_all_taken_confirm_button" = "Marcar todo";
 "missed_empty" = "No tienes ninguna toma atrasada para el rango que has seleccionado.";
 "missed_range_7" = "Últimos 7 días";
 "missed_range_30" = "Últimos 30 días";
@@ -49,14 +53,18 @@
 "summary_no_date" = "Sin fecha";
 "unit_day_one" = "día";
 "unit_day_other" = "días";
+"unit_week_one" = "semana";
+"unit_week_other" = "semanas";
 "unit_month_one" = "mes";
 "unit_month_other" = "meses";
 "unit_hour_one" = "hora";
 "unit_hour_other" = "horas";
 "recurrence_daily" = "Diaria";
+"recurrence_weekly" = "Semanal";
 "recurrence_monthly" = "Mensual";
 "recurrence_hourly" = "Cada hora";
 "recurrence_every_days_format" = "Cada %d días";
+"recurrence_every_weeks_format" = "Cada %d semanas";
 "recurrence_every_months_format" = "Cada %d meses";
 "recurrence_every_hours_format" = "Cada %d horas";
 "recurrence_three_times_daily" = "3 al día";
@@ -69,6 +77,7 @@
 "edit_section_schedule" = "Pauta";
 "edit_picker_unit" = "Unidad";
 "edit_unit_days" = "Días";
+"edit_unit_weeks" = "Semanas";
 "edit_unit_months" = "Meses";
 "edit_unit_hours" = "Horas";
 "edit_toggle_daily" = "Diario";
@@ -91,6 +100,9 @@
 "occasional_add_today_intake_alert_message_created_format" = "Se ha añadido la toma de hoy para %@ a las %@.";
 "occasional_add_today_intake_alert_message_updated_format" = "Se ha actualizado la toma de hoy para %@ a las %@.";
 "edit_section_history_format" = "Historial (últimas %d)";
+"edit_section_name_color" = "Color del nombre";
+"edit_name_color_use_default" = "Usar color por defecto";
+"edit_name_color_picker" = "Color personalizado";
 "edit_title_new" = "Nueva medicina";
 "edit_title_new_occasional" = "Nuevo uso ocasional";
 "edit_title_edit" = "Editar medicina";

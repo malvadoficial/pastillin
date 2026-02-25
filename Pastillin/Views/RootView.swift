@@ -14,6 +14,7 @@ extension Notification.Name {
     static let intakeLogsDidChange = Notification.Name("intakeLogsDidChange")
     static let medicationsScrollToTop = Notification.Name("medicationsScrollToTop")
     static let settingsScrollToTop = Notification.Name("settingsScrollToTop")
+    static let medicationTaken = Notification.Name("medicationTaken")
 }
 
 enum AppTab: String {
@@ -27,7 +28,8 @@ enum AppTab: String {
 
 struct RootView: View {
     @Environment(\.colorScheme) private var colorScheme
-    @AppStorage("selectedTab") private var selectedTab: AppTab = .medications
+    @AppStorage("selectedTab") private var selectedTab: AppTab = .today
+    @AppStorage("didSetInitialTabDefault") private var didSetInitialTabDefault: Bool = false
     @AppStorage("medicationsReselectToken") private var medicationsReselectToken: Int = 0
     @AppStorage("legalDisclaimerAccepted") private var legalDisclaimerAccepted = false
     @AppStorage("hasSeenOnboardingTutorial") private var hasSeenOnboardingTutorial = false
@@ -59,9 +61,11 @@ struct RootView: View {
                         .tabItem { Label(L10n.tr("tab_medications"), systemImage: "pills") }
                         .tag(AppTab.medications)
 
-                    ShoppingCartView()
-                        .tabItem { Label(L10n.tr("cart_title"), systemImage: "cart") }
-                        .tag(AppTab.cart)
+                    NavigationStack {
+                        ShoppingCartView()
+                    }
+                    .tabItem { Label(L10n.tr("cart_title"), systemImage: "cart") }
+                    .tag(AppTab.cart)
 
                     SettingsView()
                         .tabItem { Label(L10n.tr("tab_settings"), systemImage: "gearshape") }
@@ -74,6 +78,7 @@ struct RootView: View {
         }
         .preferredColorScheme(preferredColorScheme)
         .onAppear {
+            configureInitialTabIfNeeded()
             evaluateInitialTutorialPresentation()
         }
         .onChange(of: legalDisclaimerAccepted) { _, _ in
@@ -210,5 +215,11 @@ struct RootView: View {
     private func evaluateInitialTutorialPresentation() {
         guard shouldAutoPresentTutorial else { return }
         showTutorial = true
+    }
+
+    private func configureInitialTabIfNeeded() {
+        guard !didSetInitialTabDefault else { return }
+        selectedTab = .today
+        didSetInitialTabDefault = true
     }
 }

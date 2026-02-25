@@ -6,6 +6,7 @@ enum AppTheme {
     static let brandBlue = Color(red: 0.43, green: 0.74, blue: 0.79)
     static let brandRed = Color(red: 0.87, green: 0.52, blue: 0.61)
     static let brandYellow = Color(red: 0.90, green: 0.76, blue: 0.34)
+    static let topBarAccent = brandBlue
 
     // Colores de apoyo (20%)
     static let supportWhite = Color.white

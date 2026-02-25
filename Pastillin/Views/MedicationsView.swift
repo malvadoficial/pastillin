@@ -18,6 +18,7 @@ struct MedicationsView: View {
     @State private var pendingCartMedicationID: UUID? = nil
     @State private var pendingOpenCart = false
     @State private var listEditMode: EditMode = .inactive
+    @State private var reorderSaveTask: Task<Void, Never>? = nil
     @State private var searchText: String = ""
     @State private var isSearchExpanded = false
     @State private var isScheduledExpanded = true
@@ -47,6 +48,10 @@ struct MedicationsView: View {
             .onChange(of: medicationsReselectToken) { _, _ in
                 guard selectedTab == .medications else { return }
                 isSearchExpanded = false
+            }
+            .onDisappear {
+                reorderSaveTask?.cancel()
+                reorderSaveTask = nil
             }
             .fullScreenCover(isPresented: $showingCreateMedicationSheet) {
                 EditMedicationView(medication: nil)
@@ -186,7 +191,7 @@ struct MedicationsView: View {
             NavigationTitleWithIcon(
                 title: L10n.tr("medications_title"),
                 systemImage: "pills",
-                color: AppTheme.brandYellow
+                color: AppTheme.topBarAccent
             )
         }
         ToolbarItemGroup(placement: .topBarLeading) {
@@ -197,7 +202,7 @@ struct MedicationsView: View {
             } label: {
                 Image(systemName: (listEditMode == .active) ? "checkmark" : "pencil")
             }
-            .foregroundStyle(AppTheme.brandYellow)
+            .foregroundStyle(AppTheme.topBarAccent)
             .accessibilityLabel(L10n.tr("button_edit"))
 
             if pendingCount > 0 {
@@ -207,7 +212,7 @@ struct MedicationsView: View {
                 } label: {
                     PendingIntakesIconView(count: pendingCount)
                 }
-                .foregroundStyle(AppTheme.brandYellow)
+                .foregroundStyle(AppTheme.topBarAccent)
                 .accessibilityLabel(L10n.tr("tab_not_taken"))
             }
         }
@@ -218,11 +223,11 @@ struct MedicationsView: View {
                 } label: {
                     ShoppingCartIconView(count: shoppingCartCount)
                 }
-                .foregroundStyle(AppTheme.brandYellow)
+                .foregroundStyle(AppTheme.topBarAccent)
             }
 
             Button { showingCreateMedicationSheet = true } label: { Image(systemName: "plus") }
-                .foregroundStyle(AppTheme.brandYellow)
+                .foregroundStyle(AppTheme.topBarAccent)
         }
     }
 
@@ -325,6 +330,7 @@ struct MedicationsView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(med.name)
                     .font(.headline.weight(.semibold))
+                    .foregroundStyle(med.displayNameColor)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -436,9 +442,11 @@ struct MedicationsView: View {
 
         let current = scheduled + occasionalMeds + deactivatedMeds
         for (idx, med) in current.enumerated() {
-            med.sortOrder = idx
+            if med.sortOrder != idx {
+                med.sortOrder = idx
+            }
         }
-        try? modelContext.save()
+        scheduleReorderSave()
     }
 
     private func moveOccasionalGroups(from source: IndexSet, to destination: Int) {
@@ -449,15 +457,19 @@ struct MedicationsView: View {
         var currentOrder = scheduledMeds.count
         for group in groups {
             for med in group.medications {
-                med.sortOrder = currentOrder
+                if med.sortOrder != currentOrder {
+                    med.sortOrder = currentOrder
+                }
                 currentOrder += 1
             }
         }
         for med in deactivatedMeds {
-            med.sortOrder = currentOrder
+            if med.sortOrder != currentOrder {
+                med.sortOrder = currentOrder
+            }
             currentOrder += 1
         }
-        try? modelContext.save()
+        scheduleReorderSave()
     }
 
     private func deleteOccasionalGroups(_ indexSet: IndexSet) {
@@ -498,6 +510,15 @@ struct MedicationsView: View {
             med.sortOrder = idx
         }
         try? modelContext.save()
+    }
+
+    private func scheduleReorderSave() {
+        reorderSaveTask?.cancel()
+        reorderSaveTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            if Task.isCancelled { return }
+            try? modelContext.save()
+        }
     }
 
     private func deactivateFinishedScheduledMedicationsIfNeeded() {

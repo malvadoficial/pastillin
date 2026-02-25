@@ -41,7 +41,7 @@ enum LogService {
 
         let existing = try modelContext.fetch(FetchDescriptor<IntakeLog>())
         var existingKeys = Set(existing.map {
-            "\($0.medicationID.uuidString)-\($0.dateKey.timeIntervalSinceReferenceDate)"
+            "\($0.medicationID.uuidString)-\(cal.startOfDay(for: $0.dateKey).timeIntervalSinceReferenceDate)"
         })
 
         var cursor = startKey
@@ -85,6 +85,12 @@ enum LogService {
             if let selectedLog {
                 selectedLog.isTaken = true
                 selectedLog.takenAt = cal.isDateInToday(selectedKey) ? now : nil
+                // Notificar que se ha tomado un medicamento
+                NotificationCenter.default.post(
+                    name: .medicationTaken,
+                    object: nil,
+                    userInfo: ["medicationID": medication.id]
+                )
             } else {
                 modelContext.insert(
                     IntakeLog(
@@ -93,6 +99,12 @@ enum LogService {
                         isTaken: true,
                         takenAt: cal.isDateInToday(selectedKey) ? now : nil
                     )
+                )
+                // Notificar que se ha tomado un medicamento
+                NotificationCenter.default.post(
+                    name: .medicationTaken,
+                    object: nil,
+                    userInfo: ["medicationID": medication.id]
                 )
             }
             try modelContext.save()
@@ -192,6 +204,12 @@ enum LogService {
 
         try modelContext.save()
         NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
+        // Notificar que se ha tomado un medicamento (cuando se mueve, también se marca como tomado)
+        NotificationCenter.default.post(
+            name: .medicationTaken,
+            object: nil,
+            userInfo: ["medicationID": medication.id]
+        )
     }
 
     /// Si taken == true:
@@ -201,6 +219,12 @@ enum LogService {
         log.isTaken = taken
         if taken {
             log.takenAt = overrideTakenAt ?? Date()
+            // Notificar que se ha tomado un medicamento para actualizar el carrito
+            NotificationCenter.default.post(
+                name: .medicationTaken,
+                object: nil,
+                userInfo: ["medicationID": log.medicationID]
+            )
         } else {
             log.takenAt = nil
         }

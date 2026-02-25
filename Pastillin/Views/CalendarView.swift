@@ -135,7 +135,7 @@ struct CalendarView: View {
                         NavigationTitleWithIcon(
                             title: L10n.tr("calendar_title"),
                             systemImage: "calendar",
-                            color: AppTheme.brandRed
+                            color: AppTheme.topBarAccent
                         )
                     }
                 }
@@ -147,7 +147,7 @@ struct CalendarView: View {
                         } label: {
                             Image(systemName: "pencil")
                         }
-                        .foregroundStyle(AppTheme.brandRed)
+                        .foregroundStyle(AppTheme.topBarAccent)
                         .accessibilityLabel(L10n.tr("button_edit"))
                     }
 
@@ -158,7 +158,7 @@ struct CalendarView: View {
                         } label: {
                             PendingIntakesIconView(count: pendingCount)
                         }
-                        .foregroundStyle(AppTheme.brandRed)
+                        .foregroundStyle(AppTheme.topBarAccent)
                         .accessibilityLabel(L10n.tr("tab_not_taken"))
                     }
                 }
@@ -173,7 +173,7 @@ struct CalendarView: View {
                         } label: {
                             ShoppingCartIconView(count: shoppingCartCount)
                         }
-                        .foregroundStyle(AppTheme.brandRed)
+                        .foregroundStyle(AppTheme.topBarAccent)
                     }
 
                     Button {
@@ -182,7 +182,7 @@ struct CalendarView: View {
                     } label: {
                         Image(systemName: "plus")
                     }
-                    .foregroundStyle(AppTheme.brandRed)
+                    .foregroundStyle(AppTheme.topBarAccent)
                 }
             }
             .sheet(item: $selectedLogDetail) { wrap in
@@ -279,7 +279,6 @@ struct CalendarView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: .intakeLogsDidChange)) { _ in
                 refreshPendingCount()
-                calendarRefreshTick &+= 1
             }
         }
     }
@@ -592,6 +591,7 @@ struct CalendarView: View {
                                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                                         Text(item.med.name)
                                             .font(.footnote.weight(.semibold))
+                                            .foregroundStyle(item.med.displayNameColor)
 
                                     if item.med.kind == .occasional {
                                         Text(L10n.tr("medication_occasional_badge_short"))
@@ -639,11 +639,11 @@ struct CalendarView: View {
         let sortedIntakes = dayIntakes.sorted { lhs, rhs in
             let lm = medsByID[lhs.medicationID]
             let rm = medsByID[rhs.medicationID]
-            let lo = lm?.sortOrder ?? 0
-            let ro = rm?.sortOrder ?? 0
-            if lo != ro { return lo < ro }
-            if lm?.name != rm?.name {
-                return (lm?.name ?? "").localizedCaseInsensitiveCompare(rm?.name ?? "") == .orderedAscending
+            if let lm, let rm, medicationComesFirst(lm, rm) != medicationComesFirst(rm, lm) {
+                return medicationComesFirst(lm, rm)
+            }
+            if lm == nil || rm == nil {
+                return lm != nil
             }
             return lhs.scheduledAt < rhs.scheduledAt
         }
@@ -652,7 +652,7 @@ struct CalendarView: View {
         var rows: [CalendarRow] = sortedIntakes.compactMap { intake in
             guard let med = medsByID[intake.medicationID] else { return nil }
             let log = dayLogs.first(where: { $0.intakeID == intake.id })
-                ?? dayLogs.first(where: { $0.intakeID == nil && $0.medicationID == med.id })
+                ?? preferredLegacyLog(for: med.id, in: dayLogs)
             guard let log else { return nil }
             return CalendarRow(id: intake.id, med: med, log: log, intake: intake)
         }
@@ -664,21 +664,55 @@ struct CalendarView: View {
 
         let orphanMeds = Set(orphanLogs.map(\.medicationID))
             .compactMap { medsByID[$0] }
-            .sorted {
-                let o0 = $0.sortOrder ?? 0
-                let o1 = $1.sortOrder ?? 0
-                if o0 != o1 { return o0 < o1 }
-                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-            }
+            .sorted(by: medicationComesFirst)
 
         let representedMedicationIDs = Set(rows.map { $0.med.id })
         for med in orphanMeds {
             if representedMedicationIDs.contains(med.id) { continue }
-            guard let log = orphanLogs.first(where: { $0.medicationID == med.id }) else { continue }
+            guard let log = preferredOrphanLog(for: med.id, in: orphanLogs) else { continue }
             rows.append(CalendarRow(id: log.id, med: med, log: log, intake: nil))
         }
 
+        rows.sort { lhs, rhs in
+            if medicationComesFirst(lhs.med, rhs.med) != medicationComesFirst(rhs.med, lhs.med) {
+                return medicationComesFirst(lhs.med, rhs.med)
+            }
+            let lhsMoment = lhs.intake?.scheduledAt ?? lhs.log.takenAt ?? lhs.log.dateKey
+            let rhsMoment = rhs.intake?.scheduledAt ?? rhs.log.takenAt ?? rhs.log.dateKey
+            if lhsMoment != rhsMoment { return lhsMoment < rhsMoment }
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
+
         return rows
+    }
+
+    private func medicationComesFirst(_ lhs: Medication, _ rhs: Medication) -> Bool {
+        let lo = lhs.sortOrder ?? Int.max
+        let ro = rhs.sortOrder ?? Int.max
+        if lo != ro { return lo < ro }
+        return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+    }
+
+    private func preferredLegacyLog(for medicationID: UUID, in dayLogs: [IntakeLog]) -> IntakeLog? {
+        dayLogs
+            .filter { $0.medicationID == medicationID && $0.intakeID == nil }
+            .sorted { lhs, rhs in
+                if lhs.isTaken != rhs.isTaken { return lhs.isTaken && !rhs.isTaken }
+                if lhs.takenAt != rhs.takenAt { return (lhs.takenAt ?? lhs.dateKey) > (rhs.takenAt ?? rhs.dateKey) }
+                return lhs.id.uuidString > rhs.id.uuidString
+            }
+            .first
+    }
+
+    private func preferredOrphanLog(for medicationID: UUID, in orphanLogs: [IntakeLog]) -> IntakeLog? {
+        orphanLogs
+            .filter { $0.medicationID == medicationID }
+            .sorted { lhs, rhs in
+                if lhs.isTaken != rhs.isTaken { return lhs.isTaken && !rhs.isTaken }
+                if lhs.takenAt != rhs.takenAt { return (lhs.takenAt ?? lhs.dateKey) > (rhs.takenAt ?? rhs.dateKey) }
+                return lhs.id.uuidString > rhs.id.uuidString
+            }
+            .first
     }
 
     private func slotLabel(for row: CalendarRow) -> String? {
@@ -868,7 +902,7 @@ private struct AddIntakePickerView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(medication.name)
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(medication.displayNameColor)
                     if let lastTaken = lastTakenByMedication[medication.id] {
                         Text("Última toma: \(Fmt.dayMedium(lastTaken)) \(Fmt.timeShort(lastTaken))")
                             .font(.caption)

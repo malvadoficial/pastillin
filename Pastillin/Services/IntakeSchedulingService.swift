@@ -30,6 +30,7 @@ enum IntakeSchedulingService {
         guard medication.kind == .scheduled else { return }
 
         let calendar = Calendar.current
+        let effectiveReferenceDate = max(referenceDate, Date())
         let existing = try fetchIntakes(for: medication.id, modelContext: modelContext)
         var existingScheduledKeys = Set(
             existing
@@ -46,9 +47,9 @@ enum IntakeSchedulingService {
 
         if medication.repeatUnit == .hour {
             let boundedHorizon = max(30, horizonDays)
-            let horizonStart = calendar.startOfDay(for: referenceDate)
+            let horizonStart = calendar.startOfDay(for: effectiveReferenceDate)
             let horizonEndExclusive = calendar.date(byAdding: .day, value: boundedHorizon + 1, to: horizonStart) ?? horizonStart
-            let rangeStart = max(medication.startDate, referenceDate)
+            let rangeStart = max(medication.startDate, effectiveReferenceDate)
             let rangeEndExclusive = min(endDateExclusive(for: medication, calendar: calendar), horizonEndExclusive)
             guard rangeStart < rangeEndExclusive else { return }
 
@@ -76,7 +77,7 @@ enum IntakeSchedulingService {
                 occurrence = occurrence.addingTimeInterval(step)
             }
         } else {
-            let today = calendar.startOfDay(for: referenceDate)
+            let today = calendar.startOfDay(for: effectiveReferenceDate)
             let start = max(calendar.startOfDay(for: medication.startDate), today)
 
             let boundedHorizon = max(30, horizonDays)

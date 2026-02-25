@@ -7,11 +7,14 @@
 
 import Foundation
 import SwiftData
+import SwiftUI
+import UIKit
 
 enum RepeatUnit: Int, Codable {
-    case day
-    case month
-    case hour
+    case day = 0
+    case month = 1
+    case hour = 2
+    case week = 3
 }
 
 enum MedicationKind: Int, Codable {
@@ -47,6 +50,9 @@ final class Medication {
     var shoppingCartSortOrderRaw: Int?
     var shoppingCartExpectedEndDate: Date?
     var shoppingCartRemainingDosesRaw: Int?
+    var nameColorRedRaw: Double?
+    var nameColorGreenRaw: Double?
+    var nameColorBlueRaw: Double?
 
     // Foto (opcional)
     var photoData: Data?
@@ -62,7 +68,7 @@ final class Medication {
     var skippedDateKeysRaw: [Double]?
     var threeTimesDailyRaw: Bool?
     var repeatUnitRaw: Int
-    var interval: Int                // 1 = cada día / cada mes
+    var interval: Int                // 1 = cada día/semana/mes u hora
     var startDateRaw: Date?          // ancla (puede faltar en medicación inactiva)
     var endDate: Date?               // último día incluido
 
@@ -96,6 +102,9 @@ final class Medication {
         self.shoppingCartSortOrderRaw = nil
         self.shoppingCartExpectedEndDate = nil
         self.shoppingCartRemainingDosesRaw = nil
+        self.nameColorRedRaw = nil
+        self.nameColorGreenRaw = nil
+        self.nameColorBlueRaw = nil
     }
 
     var repeatUnit: RepeatUnit {
@@ -249,6 +258,13 @@ final class Medication {
             let diffDays = calendar.dateComponents([.day], from: startKey, to: dayKey).day ?? 0
             return diffDays % n == 0
 
+        case .week:
+            let diffDays = calendar.dateComponents([.day], from: startKey, to: dayKey).day ?? 0
+            if diffDays < 0 { return false }
+            if diffDays % 7 != 0 { return false }
+            let diffWeeks = diffDays / 7
+            return diffWeeks % n == 0
+
         case .month:
             // meses entre start y dateKey (ignorando día)
             let startComp = calendar.dateComponents([.year, .month, .day], from: startKey)
@@ -280,6 +296,52 @@ final class Medication {
 
         comps.day = clampedDay
         return calendar.startOfDay(for: calendar.date(from: comps) ?? firstOfMonth)
+    }
+
+    var hasCustomNameColor: Bool {
+        nameColorRedRaw != nil && nameColorGreenRaw != nil && nameColorBlueRaw != nil
+    }
+
+    var displayNameColor: Color {
+        guard let red = nameColorRedRaw,
+              let green = nameColorGreenRaw,
+              let blue = nameColorBlueRaw else {
+            return .primary
+        }
+        return Color(
+            red: Self.clampedColorComponent(red),
+            green: Self.clampedColorComponent(green),
+            blue: Self.clampedColorComponent(blue)
+        )
+    }
+
+    func setCustomNameColor(_ color: Color?) {
+        guard let color else {
+            nameColorRedRaw = nil
+            nameColorGreenRaw = nil
+            nameColorBlueRaw = nil
+            return
+        }
+
+        let uiColor = UIColor(color)
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        let extracted = uiColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        guard extracted else {
+            nameColorRedRaw = nil
+            nameColorGreenRaw = nil
+            nameColorBlueRaw = nil
+            return
+        }
+        nameColorRedRaw = Self.clampedColorComponent(Double(red))
+        nameColorGreenRaw = Self.clampedColorComponent(Double(green))
+        nameColorBlueRaw = Self.clampedColorComponent(Double(blue))
+    }
+
+    private static func clampedColorComponent(_ value: Double) -> Double {
+        min(max(value, 0), 1)
     }
 }
 

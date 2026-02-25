@@ -52,7 +52,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         FontRegistrar.registerAppFonts()
         UNUserNotificationCenter.current().delegate = self
         NotificationService.registerCategories()
-        UserDefaults.standard.set(AppTab.medications.rawValue, forKey: "selectedTab")
+        UserDefaults.standard.set(AppTab.today.rawValue, forKey: "selectedTab")
         return true
     }
 

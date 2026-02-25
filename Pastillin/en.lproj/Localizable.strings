@@ -11,6 +11,10 @@
 "today_title" = "Today";
 "taken_fem" = "Taken";
 "not_taken_fem" = "Not taken";
+"today_mark_all_taken_button" = "Mark all as taken";
+"today_mark_all_taken_confirm_title" = "Mark all as taken";
+"today_mark_all_taken_confirm_message" = "This will mark all visible intakes as taken. Do you want to continue?";
+"today_mark_all_taken_confirm_button" = "Mark all";
 "missed_empty" = "You don't have any overdue intakes for the selected range.";
 "missed_range_7" = "Last 7 days";
 "missed_range_30" = "Last 30 days";
@@ -49,14 +53,18 @@
 "summary_no_date" = "No date";
 "unit_day_one" = "day";
 "unit_day_other" = "days";
+"unit_week_one" = "week";
+"unit_week_other" = "weeks";
 "unit_month_one" = "month";
 "unit_month_other" = "months";
 "unit_hour_one" = "hour";
 "unit_hour_other" = "hours";
 "recurrence_daily" = "Daily";
+"recurrence_weekly" = "Weekly";
 "recurrence_monthly" = "Monthly";
 "recurrence_hourly" = "Hourly";
 "recurrence_every_days_format" = "Every %d days";
+"recurrence_every_weeks_format" = "Every %d weeks";
 "recurrence_every_months_format" = "Every %d months";
 "recurrence_every_hours_format" = "Every %d hours";
 "recurrence_three_times_daily" = "3 per day";
@@ -69,6 +77,7 @@
 "edit_section_schedule" = "Schedule";
 "edit_picker_unit" = "Unit";
 "edit_unit_days" = "Days";
+"edit_unit_weeks" = "Weeks";
 "edit_unit_months" = "Months";
 "edit_unit_hours" = "Hours";
 "edit_toggle_daily" = "Daily";
@@ -91,6 +100,9 @@
 "occasional_add_today_intake_alert_message_created_format" = "Today's intake was added for %@ at %@.";
 "occasional_add_today_intake_alert_message_updated_format" = "Today's intake was updated to %@ at %@.";
 "edit_section_history_format" = "History (last %d)";
+"edit_section_name_color" = "Name color";
+"edit_name_color_use_default" = "Use default color";
+"edit_name_color_picker" = "Custom color";
 "edit_title_new" = "New medication";
 "edit_title_new_occasional" = "New occasional-use medication";
 "edit_title_edit" = "Edit medication";

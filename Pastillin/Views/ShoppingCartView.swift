@@ -78,6 +78,7 @@ struct ShoppingCartView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(med.name)
                                     .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(med.displayNameColor)
                                 if med.shoppingCartRemainingDoses == 0 {
                                     Text(L10n.tr("cart_expected_end_out_of_stock"))
                                         .font(.footnote.weight(.semibold))
@@ -186,6 +187,8 @@ struct ShoppingCartView: View {
                 .onMove(perform: moveCartItems)
             }
         }
+        .listStyle(.plain)
+        .bottomBarSafeScrollPadding()
         .environment(\.editMode, $listEditMode)
         .navigationTitle(L10n.tr("cart_title"))
         .navigationBarTitleDisplayMode(.inline)
@@ -214,6 +217,20 @@ struct ShoppingCartView: View {
         .sheet(isPresented: $showShareSheet) {
             ActivityShareView(activityItems: [shareListText])
         }
+        .onReceive(NotificationCenter.default.publisher(for: .medicationTaken)) { notification in
+            handleMedicationTaken(notification)
+        }
+    }
+
+    private func handleMedicationTaken(_ notification: Notification) {
+        guard let medicationID = notification.userInfo?["medicationID"] as? UUID else { return }
+        guard let medication = medications.first(where: { $0.id == medicationID }) else { return }
+        guard medication.inShoppingCart else { return }
+        guard let currentDoses = medication.shoppingCartRemainingDoses, currentDoses > 0 else { return }
+        
+        // Decrementar una dosis
+        medication.shoppingCartRemainingDoses = currentDoses - 1
+        try? modelContext.save()
     }
 
     @ViewBuilder
@@ -310,3 +327,4 @@ private struct ActivityShareView: UIViewControllerRepresentable {
 
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
+

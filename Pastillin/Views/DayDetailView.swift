@@ -14,6 +14,7 @@ struct DayDetailView: View {
     @State private var selected: SelectedWrapper? = nil
     @State private var addIntakeTarget: AddIntakeTarget? = nil
     @State private var deleteCandidate: DeleteCandidate? = nil
+    @State private var showMarkAllTakenConfirmation = false
     @State private var suppressRowTap = false
 
     private var dayKey: Date {
@@ -36,6 +37,7 @@ struct DayDetailView: View {
                                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                                     Text(item.med.name)
                                         .font(.headline)
+                                        .foregroundStyle(item.med.displayNameColor)
 
                                 if item.med.kind == .occasional {
                                     Text(L10n.tr("medication_occasional_badge_short"))
@@ -101,6 +103,21 @@ struct DayDetailView: View {
                             }
                         }
                     }
+
+                    if canToggleLog(on: dayKey) {
+                        Section {
+                            Button {
+                                showMarkAllTakenConfirmation = true
+                            } label: {
+                                Text(L10n.tr("today_mark_all_taken_button"))
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(maxWidth: .infinity, alignment: .center)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(AppTheme.brandBlue)
+                            .listRowInsets(EdgeInsets(top: 12, leading: 14, bottom: 12, trailing: 14))
+                        }
+                    }
                 }
             }
             .textSelection(.enabled)
@@ -160,6 +177,14 @@ struct DayDetailView: View {
             } message: {
                 Text(L10n.tr("detail_remove_for_day_message"))
             }
+            .alert(L10n.tr("today_mark_all_taken_confirm_title"), isPresented: $showMarkAllTakenConfirmation) {
+                Button(L10n.tr("button_cancel"), role: .cancel) {}
+                Button(L10n.tr("today_mark_all_taken_confirm_button"), role: .destructive) {
+                    markAllAsTakenForDay()
+                }
+            } message: {
+                Text(L10n.tr("today_mark_all_taken_confirm_message"))
+            }
         }
     }
 
@@ -174,11 +199,11 @@ struct DayDetailView: View {
         let sortedIntakes = dayIntakes.sorted { lhs, rhs in
             let lm = medsByID[lhs.medicationID]
             let rm = medsByID[rhs.medicationID]
-            let lo = lm?.sortOrder ?? 0
-            let ro = rm?.sortOrder ?? 0
-            if lo != ro { return lo < ro }
-            if lm?.name != rm?.name {
-                return (lm?.name ?? "").localizedCaseInsensitiveCompare(rm?.name ?? "") == .orderedAscending
+            if let lm, let rm, medicationComesFirst(lm, rm) != medicationComesFirst(rm, lm) {
+                return medicationComesFirst(lm, rm)
+            }
+            if lm == nil || rm == nil {
+                return lm != nil
             }
             return lhs.scheduledAt < rhs.scheduledAt
         }
@@ -187,7 +212,7 @@ struct DayDetailView: View {
         var rows: [DayRow] = sortedIntakes.compactMap { intake in
             guard let med = medsByID[intake.medicationID] else { return nil }
             let log = dayLogs.first(where: { $0.intakeID == intake.id })
-                ?? dayLogs.first(where: { $0.intakeID == nil && $0.medicationID == med.id })
+                ?? preferredLegacyLog(for: med.id, in: dayLogs)
             guard let log else { return nil }
             return DayRow(id: intake.id, med: med, log: log, intake: intake)
         }
@@ -199,21 +224,55 @@ struct DayDetailView: View {
 
         let orphanMeds = Set(orphanLogs.map(\.medicationID))
             .compactMap { medsByID[$0] }
-            .sorted {
-                let o0 = $0.sortOrder ?? 0
-                let o1 = $1.sortOrder ?? 0
-                if o0 != o1 { return o0 < o1 }
-                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-            }
+            .sorted(by: medicationComesFirst)
 
         let representedMedicationIDs = Set(rows.map { $0.med.id })
         for med in orphanMeds {
             if representedMedicationIDs.contains(med.id) { continue }
-            guard let log = orphanLogs.first(where: { $0.medicationID == med.id }) else { continue }
+            guard let log = preferredOrphanLog(for: med.id, in: orphanLogs) else { continue }
             rows.append(DayRow(id: log.id, med: med, log: log, intake: nil))
         }
 
+        rows.sort { lhs, rhs in
+            if medicationComesFirst(lhs.med, rhs.med) != medicationComesFirst(rhs.med, lhs.med) {
+                return medicationComesFirst(lhs.med, rhs.med)
+            }
+            let lhsMoment = lhs.intake?.scheduledAt ?? lhs.log.takenAt ?? lhs.log.dateKey
+            let rhsMoment = rhs.intake?.scheduledAt ?? rhs.log.takenAt ?? rhs.log.dateKey
+            if lhsMoment != rhsMoment { return lhsMoment < rhsMoment }
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
+
         return rows
+    }
+
+    private func medicationComesFirst(_ lhs: Medication, _ rhs: Medication) -> Bool {
+        let lo = lhs.sortOrder ?? Int.max
+        let ro = rhs.sortOrder ?? Int.max
+        if lo != ro { return lo < ro }
+        return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+    }
+
+    private func preferredLegacyLog(for medicationID: UUID, in dayLogs: [IntakeLog]) -> IntakeLog? {
+        dayLogs
+            .filter { $0.medicationID == medicationID && $0.intakeID == nil }
+            .sorted { lhs, rhs in
+                if lhs.isTaken != rhs.isTaken { return lhs.isTaken && !rhs.isTaken }
+                if lhs.takenAt != rhs.takenAt { return (lhs.takenAt ?? lhs.dateKey) > (rhs.takenAt ?? rhs.dateKey) }
+                return lhs.id.uuidString > rhs.id.uuidString
+            }
+            .first
+    }
+
+    private func preferredOrphanLog(for medicationID: UUID, in orphanLogs: [IntakeLog]) -> IntakeLog? {
+        orphanLogs
+            .filter { $0.medicationID == medicationID }
+            .sorted { lhs, rhs in
+                if lhs.isTaken != rhs.isTaken { return lhs.isTaken && !rhs.isTaken }
+                if lhs.takenAt != rhs.takenAt { return (lhs.takenAt ?? lhs.dateKey) > (rhs.takenAt ?? rhs.dateKey) }
+                return lhs.id.uuidString > rhs.id.uuidString
+            }
+            .first
     }
 
     private func slotLabel(for row: DayRow) -> String? {
@@ -353,8 +412,31 @@ struct DayDetailView: View {
             log.takenAt = isToday ? Date() : nil
         }
 
-        try? modelContext.save()
-        NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
+        // Notificamos en el siguiente ciclo para no bloquear la interacción del botón.
+        Task { @MainActor in
+            try? modelContext.save()
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
+            }
+        }
+    }
+
+    private func markAllAsTakenForDay() {
+        guard canToggleLog(on: dayKey) else { return }
+        guard !dayItems.isEmpty else { return }
+
+        let isToday = Calendar.current.isDateInToday(dayKey)
+        for item in dayItems where !item.log.isTaken {
+            item.log.isTaken = true
+            item.log.takenAt = isToday ? Date() : nil
+        }
+
+        Task { @MainActor in
+            try? modelContext.save()
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
+            }
+        }
     }
 
     private func deleteScheduledIntakeForSelectedDay() {
@@ -555,7 +637,7 @@ private struct DayAddIntakePickerView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(medication.name)
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(medication.displayNameColor)
                     if let lastTaken = lastTakenByMedication[medication.id] {
                         Text("Última toma: \(Fmt.dayMedium(lastTaken)) \(Fmt.timeShort(lastTaken))")
                             .font(.caption)

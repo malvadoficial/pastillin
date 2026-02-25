@@ -66,7 +66,7 @@ struct NoTakenView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(row.medication.name)
                                     .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(.primary)
+                                    .foregroundStyle(row.medication.displayNameColor)
 
                                 Text(Fmt.dayLong(row.log.dateKey))
                                     .font(.footnote)
@@ -91,6 +91,7 @@ struct NoTakenView: View {
             if let row = selectedRow {
                 MissedIntakeActionsOverlay(
                     medicationName: row.medication.name,
+                    medicationColor: row.medication.displayNameColor,
                     dayText: Fmt.dayLong(row.log.dateKey),
                     onTaken: { markTaken(row) },
                     onNotTaken: { markNotTaken(row) },
@@ -213,7 +214,7 @@ struct NoTakenView: View {
                 guard candidate.medicationID == row.medication.id else { return false }
                 guard candidate.isTaken else { return false }
                 let candidateDay = cal.startOfDay(for: candidate.dateKey)
-                return candidateDay > rowDay && candidateDay <= today
+                return candidateDay >= rowDay && candidateDay <= today
             }
         }
 
@@ -325,6 +326,7 @@ struct NoTakenView: View {
 
 private struct MissedIntakeActionsOverlay: View {
     let medicationName: String
+    let medicationColor: Color
     let dayText: String
     let onTaken: () -> Void
     let onNotTaken: () -> Void
@@ -343,10 +345,14 @@ private struct MissedIntakeActionsOverlay: View {
                     .font(.headline)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                Text(String(format: L10n.tr("missed_modal_message_format"), medicationName, dayText))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: 4) {
+                    Text(medicationName)
+                        .foregroundStyle(medicationColor)
+                    Text("· \(dayText)")
+                        .foregroundStyle(.secondary)
+                }
+                .font(.subheadline)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 Button(action: onTaken) {
                     actionText("missed_action_taken")

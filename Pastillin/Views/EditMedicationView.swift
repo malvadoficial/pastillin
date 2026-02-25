@@ -19,7 +19,7 @@ struct EditMedicationView: View {
 
     @State private var name: String = ""
     @State private var note: String = ""
-    @State private var isActive: Bool = true
+    @State private var isActive: Bool
     @State private var selectedCreationKind: MedicationKind
 
     @State private var repeatUnit: RepeatUnit = .day
@@ -59,6 +59,8 @@ struct EditMedicationView: View {
     @State private var occasionalTodayIntakeTime: Date = Date()
     @State private var occasionalTodayIntakeWasUpdated = false
     @State private var showDeactivateReminderAlert = false
+    @State private var useDefaultNameColor = true
+    @State private var customNameColor = AppTheme.brandBlue
 
     @StateObject private var nameAutocomplete = MedicationNameAutocompleteViewModel()
     @FocusState private var focusedField: Field?
@@ -120,6 +122,8 @@ struct EditMedicationView: View {
         self.prefill = prefill
         self.openedFromCabinet = openedFromCabinet
         self._selectedCreationKind = State(initialValue: creationKind ?? .scheduled)
+        // Cuando se añade desde AEMPS, el medicamento viene desactivado por defecto
+        self._isActive = State(initialValue: prefill != nil ? false : true)
     }
 
     var body: some View {
@@ -374,14 +378,15 @@ struct EditMedicationView: View {
                                     .pickerStyle(.wheel)
                                     .frame(width: 72, height: 96)
                                     .clipped()
-
-                                    Picker(L10n.tr("edit_picker_unit"), selection: $repeatUnit) {
-                                        Text(L10n.tr("edit_unit_days")).tag(RepeatUnit.day)
-                                        Text(L10n.tr("edit_unit_months")).tag(RepeatUnit.month)
-                                        Text(L10n.tr("edit_unit_hours")).tag(RepeatUnit.hour)
-                                    }
-                                    .pickerStyle(.segmented)
                                 }
+
+                                Picker(L10n.tr("edit_picker_unit"), selection: $repeatUnit) {
+                                    Text(L10n.tr("edit_unit_hours")).tag(RepeatUnit.hour)
+                                    Text(L10n.tr("edit_unit_days")).tag(RepeatUnit.day)
+                                    Text(L10n.tr("edit_unit_weeks")).tag(RepeatUnit.week)
+                                    Text(L10n.tr("edit_unit_months")).tag(RepeatUnit.month)
+                                }
+                                .pickerStyle(.menu)
                             }
                             .onChange(of: interval) { _, newValue in
                                 guard !isOccasionalForm, !isDailySchedule else { return }
@@ -468,6 +473,17 @@ struct EditMedicationView: View {
                         .textCase(nil)
                     }
                 }
+                }
+
+                Section(L10n.tr("edit_section_name_color")) {
+                    Toggle(L10n.tr("edit_name_color_use_default"), isOn: $useDefaultNameColor)
+                    if !useDefaultNameColor {
+                        ColorPicker(
+                            L10n.tr("edit_name_color_picker"),
+                            selection: $customNameColor,
+                            supportsOpacity: false
+                        )
+                    }
                 }
 
                 if medication != nil {
@@ -811,6 +827,8 @@ struct EditMedicationView: View {
             cimaPrincipioActivo = med.cimaPrincipioActivo
             cimaLaboratorio = med.cimaLaboratorio
             cimaProspectoURL = med.cimaProspectoURL
+            useDefaultNameColor = !med.hasCustomNameColor
+            customNameColor = med.hasCustomNameColor ? med.displayNameColor : AppTheme.brandBlue
 
             if med.kind == .occasional {
                 let cal = Calendar.current
@@ -858,6 +876,8 @@ struct EditMedicationView: View {
         occasionalPastTakenTime = Date()
         isDailySchedule = true
         threeTimesDaily = false
+        useDefaultNameColor = true
+        customNameColor = AppTheme.brandBlue
     }
 
     private func onSaveTapped() {
@@ -928,6 +948,15 @@ struct EditMedicationView: View {
             med.cimaPrincipioActivo = normalizedOptional(cimaPrincipioActivo)
             med.cimaLaboratorio = normalizedOptional(cimaLaboratorio)
             med.cimaProspectoURL = normalizedOptional(cimaProspectoURL)
+            med.setCustomNameColor(
+                colorToPersist(
+                    isEditing: true,
+                    kind: kind,
+                    usesThreeTimesDaily: usesThreeTimesDaily,
+                    selectedRepeatUnit: selectedRepeatUnit,
+                    selectedInterval: selectedInterval
+                )
+            )
 
             if kind == .occasional {
                 med.isActive = isActive
@@ -993,6 +1022,15 @@ struct EditMedicationView: View {
             med.cimaPrincipioActivo = normalizedOptional(cimaPrincipioActivo)
             med.cimaLaboratorio = normalizedOptional(cimaLaboratorio)
             med.cimaProspectoURL = normalizedOptional(cimaProspectoURL)
+            med.setCustomNameColor(
+                colorToPersist(
+                    isEditing: false,
+                    kind: kind,
+                    usesThreeTimesDaily: usesThreeTimesDaily,
+                    selectedRepeatUnit: selectedRepeatUnit,
+                    selectedInterval: selectedInterval
+                )
+            )
             if kind == .occasional && med.isActive && canConfigureOccasionalReminder && occasionalReminderEnabled {
                 med.occasionalReminderEnabled = true
                 let hm = Calendar.current.dateComponents([.hour, .minute], from: occasionalReminderTime)
@@ -1363,6 +1401,9 @@ struct EditMedicationView: View {
             newMed.cimaPrincipioActivo = med.cimaPrincipioActivo
             newMed.cimaLaboratorio = med.cimaLaboratorio
             newMed.cimaProspectoURL = med.cimaProspectoURL
+            newMed.nameColorRedRaw = med.nameColorRedRaw
+            newMed.nameColorGreenRaw = med.nameColorGreenRaw
+            newMed.nameColorBlueRaw = med.nameColorBlueRaw
             newMed.occasionalReminderEnabled = false
             newMed.occasionalReminderHour = nil
             newMed.occasionalReminderMinute = nil
@@ -1414,6 +1455,8 @@ struct EditMedicationView: View {
         switch medication.repeatUnit {
         case .day:
             lookbackDays = maxHistoryItems * max(1, medication.interval) + 7
+        case .week:
+            lookbackDays = maxHistoryItems * max(1, medication.interval) * 7 + 14
         case .month:
             lookbackDays = maxHistoryItems * max(1, medication.interval) * 31 + 31
         case .hour:
@@ -1660,6 +1703,48 @@ struct EditMedicationView: View {
     private func normalizeHourlyMoment(_ date: Date, calendar: Calendar = .current) -> Date {
         let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
         return calendar.date(from: components) ?? date
+    }
+
+    private var automaticNonDailyNameColorPalette: [Color] {
+        [
+            AppTheme.brandYellow,
+            AppTheme.brandRed,
+            AppTheme.brandBlue
+        ]
+    }
+
+    private func automaticNonDailyNameColor() -> Color {
+        let existingNonDailyScheduledCount = allMeds.filter { med in
+            guard med.kind == .scheduled else { return false }
+            if med.threeTimesDaily { return false }
+            return med.repeatUnit != .day || med.interval != 1
+        }.count
+
+        let palette = automaticNonDailyNameColorPalette
+        guard !palette.isEmpty else { return AppTheme.brandYellow }
+        return palette[existingNonDailyScheduledCount % palette.count]
+    }
+
+    private func colorToPersist(
+        isEditing: Bool,
+        kind: MedicationKind,
+        usesThreeTimesDaily: Bool,
+        selectedRepeatUnit: RepeatUnit,
+        selectedInterval: Int
+    ) -> Color? {
+        if !useDefaultNameColor {
+            return customNameColor
+        }
+
+        let isNonDailyScheduled =
+            kind == .scheduled &&
+            !usesThreeTimesDaily &&
+            (selectedRepeatUnit != .day || selectedInterval != 1)
+
+        if !isEditing && isNonDailyScheduled {
+            return automaticNonDailyNameColor()
+        }
+        return nil
     }
 
     private var currentDefaultArtworkKind: MedicationDefaultArtworkKind {

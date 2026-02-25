@@ -58,7 +58,9 @@ struct MedicationLogDetailView: View {
                 Section(L10n.tr("section_medication")) {
                     HStack(spacing: 12) {
                         medicationThumbnail
-                        Text(medication.name).font(.headline)
+                        Text(medication.name)
+                            .font(.headline)
+                            .foregroundStyle(medication.displayNameColor)
                     }
                     if let note = medication.note, !note.isEmpty {
                         Text(note).foregroundStyle(.secondary)
@@ -459,8 +461,13 @@ struct MedicationLogDetailView: View {
             }
         }
 
-        try? modelContext.save()
-        NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
+        // Guardado y notificación diferidos para mejorar respuesta táctil.
+        Task { @MainActor in
+            try? modelContext.save()
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
+            }
+        }
     }
 
     @ViewBuilder

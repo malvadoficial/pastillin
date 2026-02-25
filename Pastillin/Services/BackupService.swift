@@ -55,6 +55,9 @@ enum BackupService {
             med.shoppingCartSortOrderRaw = m.shoppingCartSortOrderRaw
             med.shoppingCartExpectedEndDate = m.shoppingCartExpectedEndDate
             med.shoppingCartRemainingDosesRaw = m.shoppingCartRemainingDosesRaw
+            med.nameColorRedRaw = m.nameColorRedRaw
+            med.nameColorGreenRaw = m.nameColorGreenRaw
+            med.nameColorBlueRaw = m.nameColorBlueRaw
             modelContext.insert(med)
         }
 
@@ -169,7 +172,10 @@ enum BackupService {
                     inShoppingCartRaw: $0.inShoppingCartRaw,
                     shoppingCartSortOrderRaw: $0.shoppingCartSortOrderRaw,
                     shoppingCartExpectedEndDate: $0.shoppingCartExpectedEndDate,
-                    shoppingCartRemainingDosesRaw: $0.shoppingCartRemainingDosesRaw
+                    shoppingCartRemainingDosesRaw: $0.shoppingCartRemainingDosesRaw,
+                    nameColorRedRaw: $0.nameColorRedRaw,
+                    nameColorGreenRaw: $0.nameColorGreenRaw,
+                    nameColorBlueRaw: $0.nameColorBlueRaw
                 )
             },
             logs: logs.map {
@@ -241,6 +247,9 @@ private struct BackupMedication: Codable {
     let shoppingCartSortOrderRaw: Int?
     let shoppingCartExpectedEndDate: Date?
     let shoppingCartRemainingDosesRaw: Int?
+    let nameColorRedRaw: Double?
+    let nameColorGreenRaw: Double?
+    let nameColorBlueRaw: Double?
 }
 
 private struct BackupLog: Codable {

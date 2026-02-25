@@ -50,7 +50,7 @@ enum PendingIntakeService {
         }
 
         let validMedicationIDs = latestPendingByMedication.compactMap { medID, latestPendingDay -> UUID? in
-            if let latestTakenDay = latestTakenByMedication[medID], latestTakenDay > latestPendingDay {
+            if let latestTakenDay = latestTakenByMedication[medID], latestTakenDay >= latestPendingDay {
                 return nil
             }
             return medID

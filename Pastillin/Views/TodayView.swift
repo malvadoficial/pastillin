@@ -20,6 +20,7 @@ struct TodayView: View {
 
     @State private var rows: [TodayRow] = []
     @State private var showShoppingDisclaimerAlert = false
+    @State private var showMarkAllTakenConfirmation = false
     @State private var selected: SelectedWrapper? = nil
     @State private var addIntakeTarget: AddTodayIntakeTarget? = nil
     @State private var scheduleEditorTarget: ScheduleEditorTarget? = nil
@@ -54,6 +55,7 @@ struct TodayView: View {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(row.medication.name)
                                         .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(row.medication.displayNameColor)
 
                                     if row.medication.kind == .occasional {
                                         Text(L10n.tr("medication_occasional_badge_short"))
@@ -113,6 +115,19 @@ struct TodayView: View {
                                 selected = SelectedWrapper(med: row.medication, log: row.log, dayKey: key)
                             }
                         }
+
+                        Section {
+                            Button {
+                                showMarkAllTakenConfirmation = true
+                            } label: {
+                                Text(L10n.tr("today_mark_all_taken_button"))
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(maxWidth: .infinity, alignment: .center)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(AppTheme.brandBlue)
+                            .listRowInsets(EdgeInsets(top: 12, leading: 14, bottom: 12, trailing: 14))
+                        }
                     }
                 }
                 .textSelection(.enabled)
@@ -125,7 +140,7 @@ struct TodayView: View {
                     NavigationTitleWithIcon(
                         title: L10n.tr("today_title"),
                         systemImage: "checklist",
-                        color: AppTheme.brandBlue
+                        color: AppTheme.topBarAccent
                     )
                 }
                 ToolbarItem(placement: .topBarLeading) {
@@ -136,7 +151,7 @@ struct TodayView: View {
                         } label: {
                             PendingIntakesIconView(count: pendingCount)
                         }
-                        .foregroundStyle(AppTheme.brandBlue)
+                        .foregroundStyle(AppTheme.topBarAccent)
                         .accessibilityLabel(L10n.tr("tab_not_taken"))
                     }
                 }
@@ -151,7 +166,7 @@ struct TodayView: View {
                         } label: {
                             ShoppingCartIconView(count: shoppingCartCount)
                         }
-                        .foregroundStyle(AppTheme.brandBlue)
+                        .foregroundStyle(AppTheme.topBarAccent)
                     }
 
                     Button {
@@ -159,7 +174,7 @@ struct TodayView: View {
                     } label: {
                         ZStack {
                             Circle()
-                                .fill(AppTheme.brandBlue)
+                                .fill(AppTheme.topBarAccent)
                                 .frame(width: 28, height: 28)
                             Image(systemName: "plus")
                                 .font(.system(size: 14, weight: .bold))
@@ -225,6 +240,14 @@ struct TodayView: View {
                 }
             } message: {
                 Text(L10n.tr("cart_disclaimer_message"))
+            }
+            .alert(L10n.tr("today_mark_all_taken_confirm_title"), isPresented: $showMarkAllTakenConfirmation) {
+                Button(L10n.tr("button_cancel"), role: .cancel) {}
+                Button(L10n.tr("today_mark_all_taken_confirm_button"), role: .destructive) {
+                    markAllAsTakenToday()
+                }
+            } message: {
+                Text(L10n.tr("today_mark_all_taken_confirm_message"))
             }
         }
     }
@@ -294,8 +317,20 @@ struct TodayView: View {
             LogService.setTaken(true, for: log, overrideTakenAt: nil)
         }
 
-        try? modelContext.save()
-        reload()
+        // Guardar tras actualizar el modelo para que la UI responda primero.
+        Task { @MainActor in
+            try? modelContext.save()
+        }
+    }
+
+    private func markAllAsTakenToday() {
+        guard !rows.isEmpty else { return }
+        for row in rows where !row.log.isTaken {
+            LogService.setTaken(true, for: row.log, overrideTakenAt: nil)
+        }
+        Task { @MainActor in
+            try? modelContext.save()
+        }
     }
 
     // MARK: - Data
@@ -325,11 +360,11 @@ struct TodayView: View {
         let sortedIntakes = todayIntakes.sorted { lhs, rhs in
             let lm = medsByID[lhs.medicationID]
             let rm = medsByID[rhs.medicationID]
-            let lo = lm?.sortOrder ?? 0
-            let ro = rm?.sortOrder ?? 0
-            if lo != ro { return lo < ro }
-            if lm?.name != rm?.name {
-                return (lm?.name ?? "").localizedCaseInsensitiveCompare(rm?.name ?? "") == .orderedAscending
+            if let lm, let rm, medicationComesFirst(lm, rm) != medicationComesFirst(rm, lm) {
+                return medicationComesFirst(lm, rm)
+            }
+            if lm == nil || rm == nil {
+                return lm != nil
             }
             return lhs.scheduledAt < rhs.scheduledAt
         }
@@ -337,10 +372,28 @@ struct TodayView: View {
         for intake in sortedIntakes {
             guard let med = medsByID[intake.medicationID] else { continue }
             guard let log = todayLogs.first(where: { $0.intakeID == intake.id })
-                ?? todayLogs.first(where: { $0.medicationID == med.id }) else { continue }
+                ?? preferredLegacyLog(for: med.id, in: todayLogs) else { continue }
             temp.append(TodayRow(id: intake.id, medication: med, log: log, intake: intake))
         }
         rows = temp
+    }
+
+    private func medicationComesFirst(_ lhs: Medication, _ rhs: Medication) -> Bool {
+        let lo = lhs.sortOrder ?? Int.max
+        let ro = rhs.sortOrder ?? Int.max
+        if lo != ro { return lo < ro }
+        return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+    }
+
+    private func preferredLegacyLog(for medicationID: UUID, in dayLogs: [IntakeLog]) -> IntakeLog? {
+        dayLogs
+            .filter { $0.medicationID == medicationID && $0.intakeID == nil }
+            .sorted { lhs, rhs in
+                if lhs.isTaken != rhs.isTaken { return lhs.isTaken && !rhs.isTaken }
+                if lhs.takenAt != rhs.takenAt { return (lhs.takenAt ?? lhs.dateKey) > (rhs.takenAt ?? rhs.dateKey) }
+                return lhs.id.uuidString > rhs.id.uuidString
+            }
+            .first
     }
 
     private func slotLabel(for row: TodayRow) -> String? {
@@ -362,10 +415,27 @@ struct TodayView: View {
             return "\(intakeID.uuidString)-\(cal.startOfDay(for: log.dateKey).timeIntervalSinceReferenceDate)"
         })
 
+        // Logs legacy (intakeID == nil) existentes hoy, disponibles para enlazar a intakes
+        var availableLegacyLogs = logs.filter {
+            $0.intakeID == nil && cal.isDate($0.dateKey, inSameDayAs: today)
+        }
+
         var inserted = false
         for intake in todayIntakes {
             let key = "\(intake.id.uuidString)-\(today.timeIntervalSinceReferenceDate)"
             if existingLogKeys.contains(key) { continue }
+
+            // Si existe un log legacy para este medicamento, enlazarlo al intake
+            // en lugar de crear un duplicado
+            if let idx = availableLegacyLogs.firstIndex(where: {
+                $0.medicationID == intake.medicationID
+            }) {
+                availableLegacyLogs[idx].intakeID = intake.id
+                availableLegacyLogs.remove(at: idx)
+                inserted = true
+                continue
+            }
+
             modelContext.insert(
                 IntakeLog(
                     medicationID: intake.medicationID,
@@ -621,7 +691,7 @@ private struct TodayAddIntakePickerView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(medication.name)
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(medication.displayNameColor)
                     if let lastTaken = lastTakenByMedication[medication.id] {
                         Text("Última toma: \(Fmt.dayMedium(lastTaken)) \(Fmt.timeShort(lastTaken))")
                             .font(.caption)
