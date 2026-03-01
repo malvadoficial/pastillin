@@ -228,5 +228,6 @@ enum LogService {
         } else {
             log.takenAt = nil
         }
+        NotificationCenter.default.post(name: .intakeLogsDidChange, object: nil)
     }
 }

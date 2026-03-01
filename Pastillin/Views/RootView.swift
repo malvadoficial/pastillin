@@ -15,6 +15,7 @@ extension Notification.Name {
     static let medicationsScrollToTop = Notification.Name("medicationsScrollToTop")
     static let settingsScrollToTop = Notification.Name("settingsScrollToTop")
     static let medicationTaken = Notification.Name("medicationTaken")
+    static let todayRefresh = Notification.Name("todayRefresh")
 }
 
 enum AppTab: String {
@@ -38,6 +39,13 @@ struct RootView: View {
     @Query private var logs: [IntakeLog]
     @Query private var intakes: [Intake]
     @State private var showTutorial = false
+
+    private var pendingCount: Int {
+        PendingIntakeService.pendingMedicationCount(
+            medications: medications,
+            logs: logs
+        )
+    }
     
     init() {
         UITabBar.appearance().isHidden = true
@@ -80,6 +88,8 @@ struct RootView: View {
         .onAppear {
             configureInitialTabIfNeeded()
             evaluateInitialTutorialPresentation()
+            NotificationCenter.default.post(name: .todayRefresh, object: nil)
+            syncAppIconBadge()
         }
         .onChange(of: legalDisclaimerAccepted) { _, _ in
             evaluateInitialTutorialPresentation()
@@ -92,6 +102,16 @@ struct RootView: View {
         }
         .onChange(of: intakes.count) { _, _ in
             evaluateInitialTutorialPresentation()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            NotificationCenter.default.post(name: .todayRefresh, object: nil)
+            syncAppIconBadge()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .intakeLogsDidChange)) { _ in
+            syncAppIconBadge()
+        }
+        .onChange(of: pendingCount) { _, _ in
+            syncAppIconBadge()
         }
         .fullScreenCover(isPresented: $showTutorial, onDismiss: {
             hasSeenOnboardingTutorial = true
@@ -117,6 +137,8 @@ struct RootView: View {
                 selectedTab = newValue
                 if newValue == .calendar {
                     NotificationCenter.default.post(name: .calendarJumpToToday, object: nil)
+                } else if newValue == .today {
+                    NotificationCenter.default.post(name: .todayRefresh, object: nil)
                 }
             }
         )
@@ -222,4 +244,11 @@ struct RootView: View {
         selectedTab = .today
         didSetInitialTabDefault = true
     }
+
+    private func syncAppIconBadge() {
+        UNUserNotificationCenter.current().setBadgeCount(pendingCount) { _ in
+            // No-op
+        }
+    }
 }
+
