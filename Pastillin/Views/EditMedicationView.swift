@@ -1204,7 +1204,7 @@ struct EditMedicationView: View {
         guard !cleanNameKey.isEmpty else { return false }
 
         return allMeds.contains {
-            $0.kind == .scheduled && normalizedMedicationName($0.name) == cleanNameKey
+            $0.kind == .scheduled && $0.isActive && normalizedMedicationName($0.name) == cleanNameKey
         }
     }
 
