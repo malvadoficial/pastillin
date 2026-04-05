@@ -120,7 +120,6 @@ struct RootView: View {
         }
     }
 
-
     private var preferredColorScheme: ColorScheme? {
         let mode = settings.first?.uiAppearanceMode ?? .system
         switch mode {
@@ -251,4 +250,3 @@ struct RootView: View {
         }
     }
 }
-

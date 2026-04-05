@@ -25,9 +25,6 @@ struct TodayView: View {
     @State private var addIntakeTarget: AddTodayIntakeTarget? = nil
     @State private var scheduleEditorTarget: ScheduleEditorTarget? = nil
 
-    // Evita que el tap del botón dispare también el tap de la celda
-    @State private var suppressCellTap = false
-
     private var shoppingCartCount: Int {
         medications.filter { $0.inShoppingCart }.count
     }
@@ -49,52 +46,59 @@ struct TodayView: View {
                     } else {
                         ForEach(rows) { row in
                             HStack(spacing: 12) {
-                                medicationThumbnail(for: row.medication)
+                                Button {
+                                    let key = Calendar.current.startOfDay(for: Date())
+                                    selected = SelectedWrapper(med: row.medication, log: row.log, dayKey: key)
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        medicationThumbnail(for: row.medication)
 
-                                // Nombre + hora
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(row.medication.name)
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(row.medication.displayNameColor)
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(row.medication.name)
+                                                .font(.subheadline.weight(.semibold))
+                                                .foregroundStyle(row.medication.displayNameColor)
 
-                                    if row.medication.kind == .occasional {
-                                        Text(L10n.tr("medication_occasional_badge_short"))
-                                            .font(.caption2.weight(.semibold))
-                                            .foregroundStyle(AppTheme.brandBlue)
-                                    }
+                                            if row.medication.kind == .occasional {
+                                                Text(L10n.tr("medication_occasional_badge_short"))
+                                                    .font(.caption2.weight(.semibold))
+                                                    .foregroundStyle(AppTheme.brandBlue)
+                                            }
 
-                                    if let label = slotLabel(for: row) {
-                                        Text(label)
-                                            .font(.caption2.weight(.semibold))
-                                            .foregroundStyle(AppTheme.brandYellow)
-                                    }
+                                            if let label = slotLabel(for: row) {
+                                                Text(label)
+                                                    .font(.caption2.weight(.semibold))
+                                                    .foregroundStyle(AppTheme.brandYellow)
+                                            }
 
-                                    if row.log.isTaken {
-                                        Text(row.log.takenAt.map { Fmt.timeShort($0) } ?? L10n.tr("time_unspecified"))
-                                            .font(.subheadline)
-                                            .foregroundStyle(.secondary)
-                                    } else {
-                                        Text("—")
-                                            .font(.subheadline)
-                                            .foregroundStyle(.secondary)
-                                    }
+                                            if row.log.isTaken {
+                                                Text(row.log.takenAt.map { Fmt.timeShort($0) } ?? L10n.tr("time_unspecified"))
+                                                    .font(.subheadline)
+                                                    .foregroundStyle(.secondary)
+                                            } else {
+                                                Text("—")
+                                                    .font(.subheadline)
+                                                    .foregroundStyle(.secondary)
+                                            }
 
-                                    if row.medication.inShoppingCart {
-                                        if let runOutDate = row.medication.estimatedRunOutDate() {
-                                            Text(String(format: L10n.tr("today_cart_runs_out_format"), Fmt.dayMedium(runOutDate)))
-                                                .font(.caption.weight(.semibold))
-                                                .foregroundStyle(AppTheme.brandYellow)
-                                        } else {
-                                            Text(L10n.tr("today_cart_pending_purchase"))
-                                                .font(.caption.weight(.semibold))
-                                                .foregroundStyle(AppTheme.brandYellow)
+                                            if row.medication.inShoppingCart {
+                                                if let runOutDate = row.medication.estimatedRunOutDate() {
+                                                    Text(String(format: L10n.tr("today_cart_runs_out_format"), Fmt.dayMedium(runOutDate)))
+                                                        .font(.caption.weight(.semibold))
+                                                        .foregroundStyle(AppTheme.brandYellow)
+                                                } else {
+                                                    Text(L10n.tr("today_cart_pending_purchase"))
+                                                        .font(.caption.weight(.semibold))
+                                                        .foregroundStyle(AppTheme.brandYellow)
+                                                }
+                                            }
                                         }
+
+                                        Spacer(minLength: 0)
                                     }
+                                    .contentShape(Rectangle())
                                 }
+                                .buttonStyle(.plain)
 
-                                Spacer()
-
-                                // Botón único (toggle)
                                 Button {
                                     toggleTaken(for: row.log)
                                 } label: {
@@ -107,13 +111,6 @@ struct TodayView: View {
 
                             }
                             .padding(.vertical, 6)
-                            // Celda entera tappable para abrir detalle
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                guard !suppressCellTap else { return }
-                                let key = Calendar.current.startOfDay(for: Date())
-                                selected = SelectedWrapper(med: row.medication, log: row.log, dayKey: key)
-                            }
                         }
 
                         Section {
@@ -184,13 +181,11 @@ struct TodayView: View {
                 }
             }
             .onAppear {
-                try? IntakeSchedulingService.bootstrapScheduledIntakes(modelContext: modelContext)
                 ensureLogsForIntakesToday()
                 normalizeSortOrderIfNeeded()
                 reload()
             }
             .onChange(of: medications.count) { _, _ in
-                try? IntakeSchedulingService.bootstrapScheduledIntakes(modelContext: modelContext)
                 ensureLogsForIntakesToday()
                 reload()
             }
@@ -300,24 +295,12 @@ struct TodayView: View {
     // MARK: - Actions
 
     private func toggleTaken(for log: IntakeLog) {
-        suppressCellTap = true
-        defer {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                suppressCellTap = false
-            }
-        }
-
-        _ = Calendar.current
-
         if log.isTaken {
-            // Pasar a No tomado
             LogService.setTaken(false, for: log)
         } else {
-            // Pasar a Tomado (hoy = hora real)
             LogService.setTaken(true, for: log, overrideTakenAt: nil)
         }
 
-        // Guardar tras actualizar el modelo para que la UI responda primero.
         Task { @MainActor in
             try? modelContext.save()
         }
