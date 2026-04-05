@@ -15,7 +15,6 @@ struct DayDetailView: View {
     @State private var addIntakeTarget: AddIntakeTarget? = nil
     @State private var deleteCandidate: DeleteCandidate? = nil
     @State private var showMarkAllTakenConfirmation = false
-    @State private var suppressRowTap = false
 
     private var dayKey: Date {
         Calendar.current.startOfDay(for: day)
@@ -33,38 +32,42 @@ struct DayDetailView: View {
                 } else {
                     ForEach(dayItems) { item in
                         HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                                    Text(item.med.name)
-                                        .font(.headline)
-                                        .foregroundStyle(item.med.displayNameColor)
+                            Button {
+                                selected = SelectedWrapper(med: item.med, log: item.log, dayKey: dayKey)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                        Text(item.med.name)
+                                            .font(.headline)
+                                            .foregroundStyle(item.med.displayNameColor)
+                                    }
 
-                                if item.med.kind == .occasional {
-                                    Text(L10n.tr("medication_occasional_badge_short"))
-                                        .font(.caption2.weight(.semibold))
-                                        .foregroundStyle(AppTheme.brandBlue)
-                                }
+                                    if item.med.kind == .occasional {
+                                        Text(L10n.tr("medication_occasional_badge_short"))
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(AppTheme.brandBlue)
+                                    }
 
-                                if let label = slotLabel(for: item) {
-                                    Text(label)
-                                        .font(.caption2.weight(.semibold))
-                                        .foregroundStyle(AppTheme.brandYellow)
+                                    if let label = slotLabel(for: item) {
+                                        Text(label)
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(AppTheme.brandYellow)
+                                    }
+
+                                    if item.log.isTaken {
+                                        Text(item.log.takenAt.map { timeString($0) } ?? L10n.tr("time_unspecified"))
+                                            .font(.subheadline)
+                                            .foregroundStyle(.secondary)
+                                    } else {
+                                        Text("—")
+                                            .font(.subheadline)
+                                            .foregroundStyle(.secondary)
+                                    }
                                 }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
                             }
-
-                                // Hora: si tomada -> HH:mm o "hora no especificada", si no -> "—"
-                                if item.log.isTaken {
-                                    Text(item.log.takenAt.map { timeString($0) } ?? L10n.tr("time_unspecified"))
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                } else {
-                                    Text("—")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-
-                            Spacer()
+                            .buttonStyle(.plain)
 
                             if canToggleLog(on: dayKey) {
                                 Button {
@@ -83,11 +86,6 @@ struct DayDetailView: View {
                             }
                         }
                         .padding(.vertical, 6)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            guard !suppressRowTap else { return }
-                            selected = SelectedWrapper(med: item.med, log: item.log, dayKey: dayKey)
-                        }
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             if canDeleteScheduled(on: dayKey), item.med.kind == .scheduled {
                                 Button(role: .destructive) {
@@ -140,11 +138,9 @@ struct DayDetailView: View {
                 }
             }
             .onAppear {
-                try? IntakeSchedulingService.bootstrapScheduledIntakes(modelContext: modelContext)
                 ensureLogsForIntakes(on: dayKey)
             }
             .onChange(of: medications.count) { _, _ in
-                try? IntakeSchedulingService.bootstrapScheduledIntakes(modelContext: modelContext)
                 ensureLogsForIntakes(on: dayKey)
             }
             .onChange(of: intakes.count) { _, _ in
@@ -393,13 +389,6 @@ struct DayDetailView: View {
 
     private func toggleTaken(_ log: IntakeLog, dayKey: Date) {
         guard canToggleLog(on: dayKey) else { return }
-
-        suppressRowTap = true
-        defer {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                suppressRowTap = false
-            }
-        }
 
         let cal = Calendar.current
         let isToday = cal.isDateInToday(dayKey)

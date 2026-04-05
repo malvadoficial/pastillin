@@ -229,7 +229,6 @@ struct CalendarView: View {
                 Text(L10n.tr("cart_disclaimer_message"))
             }
             .onAppear {
-                try? IntakeSchedulingService.bootstrapScheduledIntakes(modelContext: modelContext)
                 ensureVisibleMonthLogs()
                 if selectedDay == nil {
                     selectedDay = Calendar.current.startOfDay(for: Date())
@@ -253,7 +252,6 @@ struct CalendarView: View {
                 calendarRefreshTick &+= 1
             }
             .onChange(of: medications.count) { _, _ in
-                try? IntakeSchedulingService.bootstrapScheduledIntakes(modelContext: modelContext)
                 ensureVisibleMonthLogs()
                 refreshPendingCount()
                 calendarRefreshTick &+= 1
